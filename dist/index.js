@@ -1143,6 +1143,7 @@ function run() {
                     _d.trys.push([0, 2, , 3]);
                     console.log('pwd', process.cwd());
                     fileDisplay(process.cwd());
+                    console.log('env', process.env);
                     home = os_1.default.homedir();
                     workdir = path_1.default.join(home, '.fef');
                     dependency = path_1.default.join(workdir, 'universal-package.json');

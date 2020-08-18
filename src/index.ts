@@ -43,6 +43,8 @@ async function run() {
         console.log('pwd', process.cwd());
 
         fileDisplay(process.cwd());
+
+        console.log('env', process.env)
         const home = os.homedir();
 
         const workdir = path.join(home, '.fef');
