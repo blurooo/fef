@@ -1,0 +1,12 @@
+name: 'Fef Runner'
+description: 'run fef plugin with github action'
+inputs:
+  run: # 运行的fef插件
+    description: 'Specify the fef plugin to run'
+    required: true
+  params: # 插件传递的参数
+    description: 'The params you need to pass to run the plugin'
+    required: false
+runs:
+  using: 'node12'
+  main: 'dist/index.js'

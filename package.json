@@ -1,0 +1,21 @@
+{
+  "name": "fef",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc && ncc build lib/index.js -o dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@actions/core": "^1.2.4",
+    "@actions/github": "^4.0.0",
+    "@types/js-yaml": "^3.12.5",
+    "@types/semver": "^7.3.1",
+    "js-yaml": "^3.14.0",
+    "semver": "^7.3.2"
+  }
+}
