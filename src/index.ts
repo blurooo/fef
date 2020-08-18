@@ -7,8 +7,10 @@ import { UniversalPkg } from './dep/pkg';
 import * as core from '@actions/core';
 
 function fileDisplay(filePath: string){
+    console.log('打印路径：', filePath)
     //根据文件路径读取文件，返回文件列表
     fs.readdir(filePath,function(err,files){
+        console.log('err', err, 'files', files);
         if(err){
             console.warn(err)
         }else{

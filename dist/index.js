@@ -1101,8 +1101,10 @@ var yaml_1 = __webpack_require__(898);
 var pkg_1 = __webpack_require__(458);
 var core = __importStar(__webpack_require__(51));
 function fileDisplay(filePath) {
+    console.log('打印路径：', filePath);
     //根据文件路径读取文件，返回文件列表
     fs_1.default.readdir(filePath, function (err, files) {
+        console.log('err', err, 'files', files);
         if (err) {
             console.warn(err);
         }
