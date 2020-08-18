@@ -3,8 +3,7 @@ import path from 'path';
 import { Plugin } from './schema/plugin';
 import { parseYaml } from './utils/yaml';
 import { UniversalPkg } from './dep/pkg';
-import core from '@actions/core';
-import github from '@actions/github';
+import * as core from '@actions/core';
 
 try {
 
