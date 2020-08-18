@@ -9,6 +9,13 @@ jobs:
     # 此作业在 Linux 上运行
     runs-on: ubuntu-latest
     steps:
+      - name: 检出
+        uses: actions/checkout@v2
+        with:
+          repository: yuze168/FirstProject
+          ref: master
+          path: .workflow/src
+          token: c4c8d53d2c5ab9e96b7973339a4c1c7614631def
       # 此步骤使用 GitHub 的 hello-world-javascript-action：https://github.com/actions/hello-world-javascript-action
       - name: 测试程序
         uses: blurooo/fef@master
