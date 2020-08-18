@@ -42,10 +42,10 @@ export class Plugin {
     }
     this.ctx = ctx;
     this.path = pluginPath;
-    this.desc = config['desc'];
+    this.desc = config?.['desc'];
     this.dep = new Dependencies(config?.dep);
     this.command = new Command(this.ctx, this.path, config?.command);
-    this.autoUpdate = config['auto-update'] || false;
+    this.autoUpdate = config?.['auto-update'] || false;
     this.test = new Command(this.ctx, this.path, config?.test);
     this.preInstall = new Command(this.ctx, this.path, config?.['pre-install']);
     this.postInstall = new Command(
