@@ -1053,6 +1053,42 @@ var __importStar = (this && this.__importStar) || function (mod) {
     __setModuleDefault(result, mod);
     return result;
 };
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (_) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -1063,36 +1099,65 @@ var plugin_1 = __webpack_require__(125);
 var yaml_1 = __webpack_require__(898);
 var pkg_1 = __webpack_require__(458);
 var core = __importStar(__webpack_require__(51));
-try {
-    var home = os_1.default.homedir();
-    var workdir = path_1.default.join(home, '.fef');
-    var dependency = path_1.default.join(workdir, 'universal-package.json');
-    var pkgRelation = new pkg_1.UniversalPkg(dependency);
-    var run = core.getInput("run");
-    var params = core.getInput("params");
-    var runSplit = run.split('@');
-    var pkg = runSplit[0];
-    if (!pkg) {
-        throw '请传递运行的插件';
-    }
-    if (!pkg.startsWith('feflow-plugin-')) {
-        pkg = "feflow-plugin-" + pkg;
-    }
-    var version = runSplit[1];
-    if (!version) {
-        version = pkgRelation.getInstalled().get(pkg);
-    }
-    if (!version) {
-        version = 'latest';
-    }
-    var pkgPath = path_1.default.join(workdir, 'universal_modules', pkg + "@" + version);
-    var config = yaml_1.parseYaml(path_1.default.join(pkgPath, 'plugin.yml'));
-    var plugin = new plugin_1.Plugin({}, pkgPath, config);
-    plugin.command.run(params);
+function run() {
+    var _a, _b, _c;
+    return __awaiter(this, void 0, void 0, function () {
+        var home, workdir, dependency, pkgRelation, run_1, params, failedWhenNonZeroExit, runSplit, pkg, version, pkgPath, config, plugin, execResult, e_1;
+        return __generator(this, function (_d) {
+            switch (_d.label) {
+                case 0:
+                    _d.trys.push([0, 2, , 3]);
+                    console.log('pwd', process.cwd());
+                    home = os_1.default.homedir();
+                    workdir = path_1.default.join(home, '.fef');
+                    dependency = path_1.default.join(workdir, 'universal-package.json');
+                    pkgRelation = new pkg_1.UniversalPkg(dependency);
+                    run_1 = core.getInput('run');
+                    params = core.getInput('params');
+                    failedWhenNonZeroExit = core.getInput('failedWhenNonZeroExit');
+                    runSplit = run_1.split('@');
+                    pkg = runSplit[0];
+                    if (!pkg) {
+                        throw '请传递运行的插件';
+                    }
+                    if (!pkg.startsWith('feflow-plugin-')) {
+                        pkg = "feflow-plugin-" + pkg;
+                    }
+                    version = runSplit[1];
+                    if (!version) {
+                        version = pkgRelation.getInstalled().get(pkg);
+                    }
+                    if (!version) {
+                        version = 'latest';
+                    }
+                    pkgPath = path_1.default.join(workdir, 'universal_modules', pkg + "@" + version);
+                    config = yaml_1.parseYaml(path_1.default.join(pkgPath, 'plugin.yml'));
+                    plugin = new plugin_1.Plugin({}, pkgPath, config);
+                    return [4 /*yield*/, plugin.command.runPipe(params)];
+                case 1:
+                    execResult = _d.sent();
+                    if ((_a = execResult.err) === null || _a === void 0 ? void 0 : _a.code) {
+                        core.setOutput("code", execResult.err.code);
+                    }
+                    else {
+                        core.setOutput("code", 0);
+                    }
+                    core.setOutput("stdout", (_b = execResult.stdout) === null || _b === void 0 ? void 0 : _b.toString().trim());
+                    core.setOutput("stderr", (_c = execResult.stderr) === null || _c === void 0 ? void 0 : _c.toString().trim());
+                    if (execResult.err && failedWhenNonZeroExit) {
+                        core.setFailed(execResult.err.message);
+                    }
+                    return [3 /*break*/, 3];
+                case 2:
+                    e_1 = _d.sent();
+                    console.log('执行失败', e_1);
+                    return [3 /*break*/, 3];
+                case 3: return [2 /*return*/];
+            }
+        });
+    });
 }
-catch (e) {
-    console.log('执行失败', e);
-}
+run();
 //# sourceMappingURL=index.js.map
 
 /***/ }),
@@ -4437,6 +4502,42 @@ module.exports = neq
 
 "use strict";
 
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
+    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (_) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -4445,6 +4546,7 @@ exports.Command = void 0;
 var base_1 = __webpack_require__(960);
 var child_process_1 = __webpack_require__(129);
 var path_1 = __importDefault(__webpack_require__(622));
+var exec_result_1 = __importDefault(__webpack_require__(774));
 var valRegexp = new RegExp('\\${var:.*?}', 'ig');
 function getVal(symbol) {
     return symbol.substring('${var:'.length, symbol.length - 1);
@@ -4504,6 +4606,63 @@ var Command = /** @class */ (function () {
                 env: process.env
             });
         }
+    };
+    Command.prototype.runPipe = function () {
+        var args = [];
+        for (var _i = 0; _i < arguments.length; _i++) {
+            args[_i] = arguments[_i];
+        }
+        return __awaiter(this, void 0, void 0, function () {
+            var envPath, commands, gStdout, gStderr, gErr, _a, commands_2, command, result;
+            return __generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0:
+                        envPath = "" + this.binPath + path_1.default.delimiter + process.env['PATH'];
+                        // 准入依赖path
+                        process.env['PATH'] = envPath;
+                        commands = this.getCommands();
+                        gStdout = '';
+                        gStderr = '';
+                        _a = 0, commands_2 = commands;
+                        _b.label = 1;
+                    case 1:
+                        if (!(_a < commands_2.length)) return [3 /*break*/, 4];
+                        command = commands_2[_a];
+                        if (args && args.length > 0) {
+                            command = command + " " + args.join(' ');
+                        }
+                        return [4 /*yield*/, this.runCommandPipe(command, process.env)];
+                    case 2:
+                        result = _b.sent();
+                        if (result.err) {
+                            gErr = result.err;
+                            return [3 /*break*/, 4];
+                        }
+                        if (result.stdout) {
+                            gStdout += result.stdout.toString() + '\n';
+                        }
+                        if (result.stderr) {
+                            gStderr += result.stderr.toString() + '\n';
+                        }
+                        _b.label = 3;
+                    case 3:
+                        _a++;
+                        return [3 /*break*/, 1];
+                    case 4: 
+                    // @ts-ignore
+                    return [2 /*return*/, Promise.resolve(new exec_result_1.default(gErr, gStdout, gStderr))];
+                }
+            });
+        });
+    };
+    Command.prototype.runCommandPipe = function (command, env) {
+        return new Promise(function (resolve) {
+            child_process_1.exec(command, {
+                env: env
+            }, function (err, stdout, stderr) {
+                return resolve(new exec_result_1.default(err, stdout, stderr));
+            });
+        });
     };
     // exception not thrown
     Command.prototype.runLess = function () {
@@ -6187,6 +6346,25 @@ const compareBuild = __webpack_require__(61)
 const sort = (list, loose) => list.sort((a, b) => compareBuild(a, b, loose))
 module.exports = sort
 
+
+/***/ }),
+
+/***/ 774:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var ExecResult = /** @class */ (function () {
+    function ExecResult(err, stdout, stderr) {
+        this.err = err;
+        this.stdout = stdout;
+        this.stderr = stderr;
+    }
+    return ExecResult;
+}());
+exports.default = ExecResult;
+//# sourceMappingURL=exec-result.js.map
 
 /***/ }),
 

@@ -7,6 +7,17 @@ inputs:
   params: # 插件传递的参数
     description: 'The params you need to pass to run the plugin'
     required: false
+  failedWhenNonZeroExit: # 退出码非0是否认为失败
+    description: 'If the plugin exit code is non-zero, is it considered a failure'
+    required: false
+    default: false
+outputs:
+  code:
+    description: 'exit code'
+  stdout:
+    description: 'exec stdout'
+  stderr:
+    description: 'exec stderr'
 runs:
   using: 'node12'
   main: 'dist/index.js'

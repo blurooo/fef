@@ -5,45 +5,61 @@ import { parseYaml } from './utils/yaml';
 import { UniversalPkg } from './dep/pkg';
 import * as core from '@actions/core';
 
-try {
+async function run() {
+    try {
+        console.log('pwd', process.cwd());
+        const home = os.homedir();
 
-    const home = os.homedir();
+        const workdir = path.join(home, '.fef');
 
-    const workdir = path.join(home, '.fef');
+        const dependency = path.join(workdir, 'universal-package.json');
 
-    const dependency = path.join(workdir, 'universal-package.json');
+        const pkgRelation = new UniversalPkg(dependency);
 
-    const pkgRelation = new UniversalPkg(dependency);
+        const run = core.getInput('run');
+        const params = core.getInput('params');
+        const failedWhenNonZeroExit = core.getInput('failedWhenNonZeroExit');
 
-    const run = core.getInput("run");
-    const params = core.getInput("params");
+        const runSplit = run.split('@');
+        let pkg = runSplit[0];
 
-    const runSplit = run.split('@');
-    let pkg = runSplit[0];
+        if (!pkg) {
+            throw '请传递运行的插件';
+        }
 
-    if (!pkg) {
-        throw '请传递运行的插件';
+        if (!pkg.startsWith('feflow-plugin-')) {
+            pkg = `feflow-plugin-${pkg}`;
+        }
+
+        let version: string | undefined = runSplit[1];
+        if (!version) {
+            version = pkgRelation.getInstalled().get(pkg);
+        }
+        if (!version) {
+            version = 'latest';
+        }
+
+        const pkgPath = path.join(workdir, 'universal_modules', `${pkg}@${version}`);
+
+        const config = parseYaml(path.join(pkgPath, 'plugin.yml'));
+
+        const plugin = new Plugin({}, pkgPath, config);
+
+        let execResult = await plugin.command.runPipe(params);
+
+        if (execResult.err?.code) {
+            core.setOutput("code",  execResult.err.code);
+        } else {
+            core.setOutput("code",  0);
+        }
+        core.setOutput("stdout", execResult.stdout?.toString().trim());
+        core.setOutput("stderr", execResult.stderr?.toString().trim());
+        if (execResult.err && failedWhenNonZeroExit) {
+            core.setFailed(execResult.err.message);
+        }
+    } catch (e) {
+        console.log('执行失败', e);
     }
-
-    if (!pkg.startsWith('feflow-plugin-')) {
-        pkg = `feflow-plugin-${pkg}`;
-    }
-
-    let version: string | undefined = runSplit[1];
-    if (!version) {
-        version = pkgRelation.getInstalled().get(pkg);
-    }
-    if (!version) {
-        version = 'latest';
-    }
-
-    const pkgPath = path.join(workdir, 'universal_modules', `${pkg}@${version}`);
-
-    const config = parseYaml(path.join(pkgPath, 'plugin.yml'));
-
-    const plugin = new Plugin({}, pkgPath, config);
-
-    plugin.command.run(params);
-} catch (e) {
-    console.log('执行失败', e);
 }
+
+run();
