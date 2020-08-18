@@ -18,7 +18,4 @@ jobs:
         id: hello
       # 此步骤打印上一步操作的输出（时间）。
       - name: 打印输出
-        run: |
-        echo code ${{ steps.hello.outputs.code }}
-        stdout ${{ steps.hello.outputs.stdout }}
-        stderr ${{ steps.hello.outputs.stderr }}
+        run: 'echo code ${{ steps.hello.outputs.code }} \n stdout ${{ steps.hello.outputs.stdout }} \n stderr ${{ steps.hello.outputs.stderr }}'
