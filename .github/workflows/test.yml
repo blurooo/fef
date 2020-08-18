@@ -1,0 +1,24 @@
+name: 测试action机制
+# This workflow is triggered on pushes to the repository.
+on: [push]
+
+jobs:
+  build:
+    # 作业名称为 Greeting
+    name: 运行fef
+    # 此作业在 Linux 上运行
+    runs-on: ubuntu-latest
+    steps:
+      # 此步骤使用 GitHub 的 hello-world-javascript-action：https://github.com/actions/hello-world-javascript-action
+      - name: 测试程序
+        uses: blurooo/fef@master
+        with:
+          run: 'py-echo'
+          params: 'hello, world'
+        id: hello
+      # 此步骤打印上一步操作的输出（时间）。
+      - name: 打印输出
+        run: |
+        echo code ${{ steps.hello.outputs.code }}
+        stdout ${{ steps.hello.outputs.stdout }}
+        stderr ${{ steps.hello.outputs.stderr }}
