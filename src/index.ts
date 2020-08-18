@@ -5,9 +5,15 @@ import { Plugin } from './schema/plugin';
 import { parseYaml } from './utils/yaml';
 import { UniversalPkg } from './dep/pkg';
 import * as core from '@actions/core';
+import { Git } from './install/git';
 
 async function run(pluginPath: string) {
     try {
+
+        let git = new Git('git@git.code.oa.com:cli-market/code-style.git', pluginPath);
+
+        await git.install('code-style', '')
+
         console.log('pwd', process.cwd());
 
         console.log('env', process.env)
@@ -66,4 +72,4 @@ async function run(pluginPath: string) {
     }
 }
 
-run();
+run(path.join(os.homedir(), 'fef'));

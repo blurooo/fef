@@ -1,8 +1,11 @@
 import spawn from 'cross-spawn';
+import path from 'path';
+import fs from 'fs';
+import VersionStyle from '../dep/version';
 
 export class Git {
 
-    private pkgDir: string;
+    private pkgRootDir: string;
 
     private url: string;
 
@@ -10,28 +13,53 @@ export class Git {
 
     private isSSH: boolean = false;
 
-    constructor(url: string, pkgDir: string) {
-        this.pkgDir = pkgDir;
+    constructor(url: string, pkgRootDir: string) {
+        this.pkgRootDir = pkgRootDir;
         this.url = url;
     }
 
-    install(url: string, ver: string) {
-
+    async install(pkg: string, ver: string): Promise<any> {
+        let url = await this.transformUrl(this.url);
+        let checkTag: string = ver;
+        if (!ver || ver === 'latest') {
+            let latestTag = await this.getTag(url);
+            if (!latestTag) {
+                return Promise.reject('no any version');
+            }
+            checkTag = latestTag;
+            ver = 'latest';
+        } else {
+            if (!await this.getTag(url, ver)) {
+                return Promise.reject('unknown version');
+            }
+        }
+        const pkgPath = path.join(this.pkgRootDir, `${pkg}@${checkTag}`);
+        if (fs.existsSync(pkgPath)) {
+            return;
+        }
+        try {
+            await this.clone(url, checkTag, pkgPath);
+        } catch(e) {
+            return Promise.reject(e);
+        }
+        if (ver === 'latest') {
+            let linkPath = path.join(this.pkgRootDir, `${pkg}@${ver}`);
+            fs.symlinkSync(pkgPath, linkPath);
+        }
     }
 
     async getTag(
         repoUrl: string,
         version?: string
     ): Promise<string | undefined> {
-        const url = await this.transformUrl(repoUrl);
         const { stdout } = spawn.sync('git', [
             'ls-remote',
             '--tags',
             '--refs',
-            url
+            repoUrl
         ]);
 
-        const tagListStr = stdout?.trim();
+        const tagListStr = stdout?.toString()?.trim();
         if (!tagListStr) {
             return;
         }
@@ -41,20 +69,27 @@ export class Git {
         for (const tagStr of tagList) {
             const [, tagReference] = tagStr.split('\t');
             const tag = tagReference?.substring('refs/tags/'.length);
-            if (!versionImpl.check(tag)) {
+            if (!VersionStyle.check(tag)) {
                 continue;
             }
             if (tag === version) {
                 return tag;
             }
-            if (version && !versionImpl.satisfies(tag, version)) {
+            if (version && !VersionStyle.satisfies(tag, version)) {
                 continue;
             }
-            if (!satisfiedMaxVersion || versionImpl.gt(tag, satisfiedMaxVersion)) {
+            if (!satisfiedMaxVersion || VersionStyle.gt(tag, satisfiedMaxVersion)) {
                 satisfiedMaxVersion = tag;
             }
         }
         return satisfiedMaxVersion;
+    }
+
+    async clone(url: string, tag: string, pkgPath: string): Promise<any> {
+        const { error } = spawn.sync('git', ['clone', '-b', tag, '--depth', '1', url, pkgPath]);
+        if (error) {
+            return Promise.reject(error);
+        }
     }
 
     async transformUrl(url: string, account?: any): Promise<any> {

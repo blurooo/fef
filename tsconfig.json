@@ -6,12 +6,13 @@
     "declaration": true,
     "outDir": "lib",
     "rootDir": "src",
-    "strict": true,
+    // "strict": true,
     "types": ["node"],
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "typeRoots": ["node_modules/@types", "./types"],
-    "sourceMap": true
+    "sourceMap": true,
+    "downlevelIteration": true
   },
   "exclude": [
     "node_modules",
