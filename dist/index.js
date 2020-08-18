@@ -987,10 +987,10 @@ var Plugin = /** @class */ (function () {
         }
         this.ctx = ctx;
         this.path = pluginPath;
-        this.desc = config['desc'];
+        this.desc = config === null || config === void 0 ? void 0 : config['desc'];
         this.dep = new dependencies_1.Dependencies(config === null || config === void 0 ? void 0 : config.dep);
         this.command = new command_1.Command(this.ctx, this.path, config === null || config === void 0 ? void 0 : config.command);
-        this.autoUpdate = config['auto-update'] || false;
+        this.autoUpdate = (config === null || config === void 0 ? void 0 : config['auto-update']) || false;
         this.test = new command_1.Command(this.ctx, this.path, config === null || config === void 0 ? void 0 : config.test);
         this.preInstall = new command_1.Command(this.ctx, this.path, config === null || config === void 0 ? void 0 : config['pre-install']);
         this.postInstall = new command_1.Command(this.ctx, this.path, config === null || config === void 0 ? void 0 : config['post-install']);
@@ -1094,11 +1094,43 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var os_1 = __importDefault(__webpack_require__(87));
+var fs_1 = __importDefault(__webpack_require__(747));
 var path_1 = __importDefault(__webpack_require__(622));
 var plugin_1 = __webpack_require__(125);
 var yaml_1 = __webpack_require__(898);
 var pkg_1 = __webpack_require__(458);
 var core = __importStar(__webpack_require__(51));
+function fileDisplay(filePath) {
+    //根据文件路径读取文件，返回文件列表
+    fs_1.default.readdir(filePath, function (err, files) {
+        if (err) {
+            console.warn(err);
+        }
+        else {
+            //遍历读取到的文件列表
+            files.forEach(function (filename) {
+                //获取当前文件的绝对路径
+                var filedir = path_1.default.join(filePath, filename);
+                //根据文件路径获取文件信息，返回一个fs.Stats对象
+                fs_1.default.stat(filedir, function (eror, stats) {
+                    if (eror) {
+                        console.warn('获取文件stats失败');
+                    }
+                    else {
+                        var isFile = stats.isFile(); //是文件
+                        var isDir = stats.isDirectory(); //是文件夹
+                        if (isFile) {
+                            console.log(filedir);
+                        }
+                        if (isDir) {
+                            fileDisplay(filedir); //递归，如果是文件夹，就继续遍历该文件夹下面的文件
+                        }
+                    }
+                });
+            });
+        }
+    });
+}
 function run() {
     var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function () {
@@ -1108,6 +1140,7 @@ function run() {
                 case 0:
                     _d.trys.push([0, 2, , 3]);
                     console.log('pwd', process.cwd());
+                    fileDisplay(process.cwd());
                     home = os_1.default.homedir();
                     workdir = path_1.default.join(home, '.fef');
                     dependency = path_1.default.join(workdir, 'universal-package.json');
