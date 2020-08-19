@@ -54,8 +54,8 @@ export default class Linker {
   }
 
   private linkToWin32(binPath: string, command: string, name?: string) {
-    this.enableDir(binPath);
     const file = this.cmdFile(binPath, name || command);
+    this.enableDir(binPath);
     const template = this.cmdTemplate(command);
     this.writeExecFile(file, template);
   }

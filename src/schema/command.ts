@@ -58,6 +58,7 @@ export class Command {
     const envPath = `${this.binPath}${path.delimiter}${process.env['PATH']}`;
     // 准入依赖path
     process.env['PATH'] = envPath;
+    process.env['FEF_PLUGIN_PATH'] = this.val.pd;
     const commands = this.getCommands();
     for (let command of commands) {
       if (args && args.length > 0) {
@@ -83,15 +84,15 @@ export class Command {
         command = `${command} ${args.join(' ')}`;
       }
       let result = await this.runCommandPipe(command, process.env);
+      if (result.stdout) {
+        gStdout += result.stdout.toString()
+      }
+      if (result.stderr) {
+        gStderr += result.stderr.toString()
+      }
       if (result.err) {
         gErr = result.err;
         break;
-      }
-      if (result.stdout) {
-        gStdout += result.stdout.toString() + '\n'
-      }
-      if (result.stderr) {
-        gStderr += result.stderr.toString() + '\n'
       }
     }
     // @ts-ignore

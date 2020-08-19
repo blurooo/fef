@@ -1,16 +1,10 @@
 import fs from 'fs';
+import util from 'util';
 import yaml from 'js-yaml';
 
-export function parseYaml(path: any) {
-  let config;
+const readFile = util.promisify(fs.readFile);
 
-  if (fs.existsSync(path)) {
-    try {
-      config = yaml.safeLoad(fs.readFileSync(path, 'utf8'));
-    } catch (e) {
-      throw new Error(e);
-    }
-  }
-
-  return config;
+export async function parseYaml(path: any) {
+  const content = await readFile(path, 'utf8');
+  return yaml.safeLoad(content?.toString());
 }

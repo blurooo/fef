@@ -13,14 +13,15 @@
   "dependencies": {
     "@actions/core": "^1.2.4",
     "@actions/github": "^4.0.0",
-    "cross-spawn": "^7.0.3",
     "js-yaml": "^3.14.0",
     "lookpath": "^1.1.0",
+    "request": "^2.88.2",
+    "request-promise": "^4.2.6",
     "semver": "^7.3.2"
   },
   "devDependencies": {
-    "@types/cross-spawn": "^6.0.2",
     "@types/js-yaml": "^3.12.5",
+    "@types/request-promise": "^4.1.46",
     "@types/semver": "^7.3.3"
   }
 }

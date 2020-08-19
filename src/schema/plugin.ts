@@ -4,7 +4,7 @@ import { platformType } from './base';
 
 export class Plugin {
 
-  private ctx: any;
+  private readonly ctx: any;
 
   path: string;
 

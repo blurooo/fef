@@ -1,74 +1,71 @@
 import os from 'os';
-import fs from 'fs';
 import path from 'path';
 import { Plugin } from './schema/plugin';
 import { parseYaml } from './utils/yaml';
-import { UniversalPkg } from './dep/pkg';
 import * as core from '@actions/core';
 import { Git } from './install/git';
+import Linker from "./linker";
+
+const ymlFile = 'plugin.yml';
+const server = 'http://gui.oa.com/';
+const execName = 'ff';
 
 async function run(pluginPath: string) {
+    let fromAction = true;
     try {
+        let git = new Git(pluginPath, ymlFile, server, execName);
 
-        let git = new Git('git@git.code.oa.com:cli-market/code-style.git', pluginPath);
+        let argv = process.argv.slice(2);
 
-        await git.install('code-style', '')
+        const startCommand = process.argv[0];
+        const command = process.argv[1];
 
-        console.log('pwd', process.cwd());
+        const curBinPath = path.join(pluginPath, "bin")
+        new Linker(startCommand).register(curBinPath, path.join(pluginPath, "lib"), command, execName);
 
-        console.log('env', process.env)
+        process.env['PATH'] = `${curBinPath}${path.delimiter}${process.env['PATH']}`;
 
-        const home = os.homedir();
+        let run = '';
+        let params = '';
 
-        const workdir = path.join(home, '.fef');
+        if (argv?.length > 0) {
+            fromAction = false;
+            run = argv[0];
+            params = argv.slice(1).join(' ');
+        } else {
+            run = core.getInput('run');
+            params = core.getInput('params');
+        }
 
-        const dependency = path.join(workdir, 'universal-package.json');
-
-        const pkgRelation = new UniversalPkg(dependency);
-
-        const run = core.getInput('run');
-        const params = core.getInput('params');
         const failedWhenNonZeroExit = core.getInput('failedWhenNonZeroExit');
 
-        const runSplit = run.split('@');
-        let pkg = runSplit[0];
+        const pkgInfo = await git.download(run);
 
-        if (!pkg) {
-            throw '请传递运行的插件';
-        }
+        const pkgPath = path.join(pluginPath, `${pkgInfo.pkg}@${pkgInfo.ver}`);
 
-        if (!pkg.startsWith('feflow-plugin-')) {
-            pkg = `feflow-plugin-${pkg}`;
-        }
-
-        let version: string | undefined = runSplit[1];
-        if (!version) {
-            version = pkgRelation.getInstalled().get(pkg);
-        }
-        if (!version) {
-            version = 'latest';
-        }
-
-        const pkgPath = path.join(workdir, 'universal_modules', `${pkg}@${version}`);
-
-        const config = parseYaml(path.join(pkgPath, 'plugin.yml'));
+        const config = await parseYaml(path.join(pkgPath, 'plugin.yml'));
 
         const plugin = new Plugin({}, pkgPath, config);
 
-        let execResult = await plugin.command.runPipe(params);
-
-        if (execResult.err?.code) {
-            core.setOutput("code",  execResult.err.code);
-        } else {
-            core.setOutput("code",  0);
+        try {
+            plugin.command.run(params);
+        } catch (err) {
+            if (fromAction && err?.status) {
+                core.setOutput("code",  err.status);
+                if (failedWhenNonZeroExit) {
+                    core.setFailed(err.toString());
+                }
+                return;
+            }
         }
-        core.setOutput("stdout", execResult.stdout?.toString().trim());
-        core.setOutput("stderr", execResult.stderr?.toString().trim());
-        if (execResult.err && failedWhenNonZeroExit) {
-            core.setFailed(execResult.err.message);
-        }
+        fromAction && core.setOutput("code",  0);
     } catch (e) {
-        console.log('执行失败', e);
+        if (fromAction) {
+            core.setFailed(e?.toString());
+            console.error(e);
+        } else {
+            throw e;
+        }
     }
 }
 

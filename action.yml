@@ -14,10 +14,6 @@ inputs:
 outputs:
   code:
     description: 'exit code'
-  stdout:
-    description: 'exec stdout'
-  stderr:
-    description: 'exec stderr'
 runs:
   using: 'node12'
   main: 'dist/index.js'
