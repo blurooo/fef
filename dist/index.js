@@ -33171,8 +33171,13 @@ class Linker {
         const file = this.shellFile(libPath, name || command);
         const template = this.shellTemplate(command);
         const commandLink = path_1.default.join(binPath, name || command);
-        await this.writeExecFile(file, template);
-        return this.link(file, commandLink);
+        try {
+            await fs_1.default.access(commandLink, fs_1.default.constants.F_OK);
+        }
+        catch (e) {
+            await this.writeExecFile(file, template);
+            return this.link(file, commandLink);
+        }
     }
     async link(source, target) {
         try {

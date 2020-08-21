@@ -70,8 +70,12 @@ export default class Linker {
     const file = this.shellFile(libPath, name || command);
     const template = this.shellTemplate(command);
     const commandLink = path.join(binPath, name || command);
-    await this.writeExecFile(file, template);
-    return this.link(file, commandLink);
+    try {
+      await fs.access(commandLink, fs.constants.F_OK);
+    } catch (e) {
+      await this.writeExecFile(file, template);
+      return this.link(file, commandLink);
+    }
   }
 
   private async link(source: string, target: string) {

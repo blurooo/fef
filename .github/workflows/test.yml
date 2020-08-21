@@ -18,7 +18,7 @@ jobs:
         uses: blurooo/fef@master
         with:
           run: 'code-style'
-          params: '-f'
+          params: '-f --debug'
         id: hello
       # 此步骤打印上一步操作的输出（时间）。
       - name: 打印输出
