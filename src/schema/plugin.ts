@@ -3,7 +3,6 @@ import { Dependencies } from './dependencies';
 import { platformType } from './base';
 
 export class Plugin {
-
   path: string;
 
   desc: string;
@@ -12,7 +11,7 @@ export class Plugin {
 
   command: Command;
 
-  autoUpdate: boolean = true;
+  autoUpdate = true;
 
   test: Command;
 
@@ -59,5 +58,4 @@ export class Plugin {
     await this.dep.check();
     this.command.check();
   }
-
 }

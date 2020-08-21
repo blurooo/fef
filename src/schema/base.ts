@@ -1,13 +1,13 @@
 import os from 'os';
 
-const platformMap: {[index:string]: string} = {
+const platformMap: { [index: string]: string } = {
   aix: 'linux',
   freebsd: 'linux',
   linux: 'linux',
   openbsd: 'linux',
   sunos: 'linux',
   win32: 'windows',
-  darwin: 'macos'
+  darwin: 'macos',
 };
 
 const platform = os.platform();

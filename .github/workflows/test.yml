@@ -17,10 +17,16 @@ jobs:
       - name: 测试程序
         uses: blurooo/fef@master
         with:
+          run: 'py-echo'
+          params: 'hello'
+        id: hello
+      - name: 测试程序
+        uses: blurooo/fef@master
+        with:
           run: 'code-style'
           params: '-f'
           failedWhenNonZeroExit: true
-        id: hello
+        id: code-style
       # 此步骤打印上一步操作的输出（时间）。
       - name: 打印输出
         run: 'echo code ${{ steps.hello.outputs.code }}'

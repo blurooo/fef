@@ -9060,11 +9060,10 @@ const core = __importStar(__webpack_require__(51));
 const git_1 = __webpack_require__(997);
 const linker_1 = __importDefault(__webpack_require__(708));
 function enableCommand(workDir) {
-    const nodeCommand = process.argv[0];
-    const fefEnterFile = process.argv[1];
-    const curBinPath = path_1.default.join(workDir, "bin");
-    const libBinPath = path_1.default.join(workDir, "lib");
-    process.env['PATH'] = `${curBinPath}${path_1.default.delimiter}${process.env['PATH']}`;
+    const [nodeCommand, fefEnterFile] = process.argv;
+    const curBinPath = path_1.default.join(workDir, 'bin');
+    const libBinPath = path_1.default.join(workDir, 'lib');
+    process.env.PATH = `${curBinPath}${path_1.default.delimiter}${process.env.PATH}`;
     const linker = new linker_1.default(nodeCommand);
     return linker.register(curBinPath, libBinPath, fefEnterFile, config_1.default.execName);
 }
@@ -9072,7 +9071,7 @@ async function enableEnv(plugin, silent) {
     const git = new git_1.Git(silent);
     const [pluginInfo] = await Promise.all([
         git.enablePlugin(plugin),
-        enableCommand(config_1.default.workPath)
+        enableCommand(config_1.default.workPath),
     ]);
     return pluginInfo;
 }
@@ -9080,13 +9079,13 @@ async function exec() {
     let fromAction = true;
     let run;
     let params;
-    let argv = process.argv.slice(2);
+    const argv = process.argv.slice(2);
     if ((argv === null || argv === void 0 ? void 0 : argv.length) > 0) {
         fromAction = false;
-        run = argv[0];
-        params = argv.slice(1).filter(a => {
-            return !config_1.default.filterParams.includes(a);
-        }).join(' ');
+        [run] = argv;
+        params = argv.slice(1)
+            .filter(a => !config_1.default.filterParams.includes(a))
+            .join(' ');
     }
     else {
         run = core.getInput('run');
@@ -9095,13 +9094,13 @@ async function exec() {
     const pluginInfo = await enableEnv(run, !fromAction);
     try {
         await execPlugin(pluginInfo, params);
-        fromAction && core.setOutput("code", 0);
+        fromAction && core.setOutput('code', 0);
     }
     catch (err) {
         if (!fromAction) {
             throw err;
         }
-        core.setOutput("code", (err === null || err === void 0 ? void 0 : err.status) || 1);
+        core.setOutput('code', (err === null || err === void 0 ? void 0 : err.status) || 1);
         const failedWhenNonZeroExit = core.getInput('failedWhenNonZeroExit');
         if (failedWhenNonZeroExit) {
             core.setFailed(err === null || err === void 0 ? void 0 : err.toString());
@@ -9112,7 +9111,7 @@ async function execPlugin(pluginInfo, params) {
     const protocol = await pluginInfo.getProtocol();
     protocol.command.run(params);
 }
-exec().catch(e => {
+exec().catch((e) => {
     process.exit((e === null || e === void 0 ? void 0 : e.status) || 1);
 });
 //# sourceMappingURL=index.js.map
@@ -28354,13 +28353,14 @@ exports.default = new class {
         this.writeFile = util_1.default.promisify(fs_1.default.writeFile);
         this.symlink = util_1.default.promisify(fs_1.default.symlink);
         this.unlink = util_1.default.promisify(fs_1.default.unlink);
-        this.link = async (source, target) => {
-            try {
-                await this.unlink(target);
-            }
-            catch (e) { }
-            return this.symlink(source, target);
-        };
+    }
+    async link(source, target) {
+        try {
+            await this.unlink(target);
+        }
+        catch (e) {
+        }
+        return this.symlink(source, target);
     }
 };
 //# sourceMappingURL=index.js.map
@@ -30177,8 +30177,8 @@ class Command {
     }
     injectEnv() {
         // 注入依赖path
-        process.env['PATH'] = `${this.binPath}${path_1.default.delimiter}${process.env['PATH']}`;
-        process.env['FEF_PLUGIN_PATH'] = this.val.pd;
+        process.env.PATH = `${this.binPath}${path_1.default.delimiter}${process.env.PATH}`;
+        process.env.FEF_PLUGIN_PATH = this.val.pd;
     }
     run(...args) {
         this.injectEnv();
@@ -30189,7 +30189,7 @@ class Command {
             }
             child_process_1.execSync(command, {
                 stdio: 'inherit',
-                env: process.env
+                env: process.env,
             });
         }
     }
@@ -33159,7 +33159,7 @@ class Linker {
         const shellFile = this.shellFile(libPath, name);
         return Promise.all([
             fs_1.default.unlink(commandLink),
-            fs_1.default.unlink(shellFile)
+            fs_1.default.unlink(shellFile),
         ]);
     }
     async linkToWin32(binPath, command, name) {
@@ -33185,14 +33185,15 @@ class Linker {
         try {
             await fs_1.default.unlink(target);
         }
-        catch (e) { }
+        catch (e) {
+        }
         return fs_1.default.symlink(source, target);
     }
     writeExecFile(file, content) {
         return fs_1.default.writeFile(file, content, {
             mode: this.fileMode,
             flag: 'w',
-            encoding: 'utf8'
+            encoding: 'utf8',
         });
     }
     shellTemplate(command) {
@@ -36950,7 +36951,7 @@ function toArray(v, defaultV) {
         if (typeof v === 'string') {
             return [v];
         }
-        throw `field must provide either a string or an array of strings`;
+        throw 'field must provide either a string or an array of strings';
     }
     return v || defaultV || [];
 }
@@ -39061,7 +39062,7 @@ exports.default = {
     // 安装成功标志
     fefDoneFile: '.fef.done',
     // 过滤参数
-    filterParams: ['--disable-check']
+    filterParams: ['--disable-check'],
 };
 //# sourceMappingURL=index.js.map
 
@@ -40058,9 +40059,7 @@ class Dependencies {
         if (this.os.length === 0) {
             return;
         }
-        const i = this.os.findIndex(cur => {
-            return cur === base_1.platformType || cur === `${base_1.platformType}.${base_1.arch}`;
-        });
+        const i = this.os.findIndex(cur => cur === base_1.platformType || cur === `${base_1.platformType}.${base_1.arch}`);
         if (i === -1) {
             throw `the plugin does not support the ${base_1.platformType}.${base_1.arch} operating system`;
         }
@@ -46551,7 +46550,7 @@ const platformMap = {
     openbsd: 'linux',
     sunos: 'linux',
     win32: 'windows',
-    darwin: 'macos'
+    darwin: 'macos',
 };
 const platform = os_1.default.platform();
 const arch = os_1.default.arch();
@@ -47328,14 +47327,15 @@ class Git {
             await fs_1.default.access(doneFile, fs_1.default.constants.F_OK);
             return pluginInfo;
         }
-        catch (e) { }
-        let url = await this.getRepoInfo(pluginFullName);
+        catch (e) {
+        }
+        const url = await this.getRepoInfo(pluginFullName);
         if (!url) {
             return Promise.reject(`unknown pkg: ${pluginFullName}`);
         }
         let checkTag = '';
         if (ver === 'latest') {
-            let latestTag = await this.getTag(url);
+            const latestTag = await this.getTag(url);
             if (!latestTag) {
                 return Promise.reject('no any version');
             }
@@ -47343,14 +47343,12 @@ class Git {
             ver = 'latest';
         }
         else {
-            let invalidVer = await this.getTag(url, ver);
+            const invalidVer = await this.getTag(url, ver);
             if (!invalidVer) {
-                return Promise.reject('unknown version:' + url + '@' + ver);
+                return Promise.reject(`unknown version:${url}@${ver}`);
             }
-            else {
-                ver = invalidVer;
-                checkTag = ver;
-            }
+            ver = invalidVer;
+            checkTag = ver;
         }
         pluginInfo.checkoutTag = checkTag;
         const pluginRealPath = pluginInfo.getPluginRealPath();
@@ -47377,26 +47375,24 @@ class Git {
         const binPath = path_1.default.join(pluginPath, '.bin');
         const libPath = path_1.default.join(pluginPath, '.lib');
         const protocol = await pluginInfo.getProtocol();
-        const tasks = protocol.dep.plugin.map(plugin => {
-            return this.enablePlugin(plugin).then(depPluginInfo => {
-                const linker = new linker_1.default(config_1.default.execName);
-                const command = `${depPluginInfo.pluginName}@${depPluginInfo.ver}`;
-                return linker.register(binPath, libPath, command, depPluginInfo.pluginName);
-            });
-        });
+        const tasks = protocol.dep.plugin.map(plugin => this.enablePlugin(plugin).then((depPluginInfo) => {
+            const linker = new linker_1.default(config_1.default.execName);
+            const command = `${depPluginInfo.pluginName}@${depPluginInfo.ver}`;
+            return linker.register(binPath, libPath, command, depPluginInfo.pluginName);
+        }));
         // 写入安装完成标志
         return Promise.all(tasks).then(() => {
             const doneFile = path_1.default.join(pluginPath, config_1.default.fefDoneFile);
             return fs_1.default.writeFile(doneFile, '', {
                 flag: 'w',
-                encoding: 'utf8'
+                encoding: 'utf8',
             });
         });
     }
     async getRepoInfo(packageName) {
         const options = {
             url: `${config_1.default.storeUrl}apply/getlist?name=${packageName}`,
-            method: 'GET'
+            method: 'GET',
         };
         return request_promise_1.default(options).then((response) => {
             var _a, _b;
@@ -47409,7 +47405,7 @@ class Git {
         var _a;
         const { stdout } = await execAsync(`git ls-remote --tags --refs ${repoUrl}`, {
             timeout: 2000,
-            windowsHide: true
+            windowsHide: true,
         });
         const tagListStr = (_a = stdout === null || stdout === void 0 ? void 0 : stdout.toString()) === null || _a === void 0 ? void 0 : _a.trim();
         if (!tagListStr) {
@@ -47437,7 +47433,7 @@ class Git {
     }
     async clone(url, tag, pkgPath) {
         return execAsync(`git clone -b ${tag} --depth 1 ${url} ${pkgPath}`, {
-            windowsHide: true
+            windowsHide: true,
         });
     }
     async transformUrl(url, account) {
@@ -47447,37 +47443,31 @@ class Git {
             if (/https?/.test(url)) {
                 return url.replace(/https?:\/\//, 'git@').replace(/\//, ':');
             }
-            else {
-                return url;
-            }
+            return url;
+        }
+        let transformedUrl;
+        if (/https?/.test(url)) {
+            transformedUrl = url;
         }
         else {
-            let transformedUrl;
-            if (/https?/.test(url)) {
-                transformedUrl = url;
-            }
-            else {
-                transformedUrl = url.replace(`git@${hostname}:`, `http://${hostname}/`);
-            }
-            if (account) {
-                this.gitAccount = account;
-            }
-            if (this.gitAccount) {
-                const { username, password } = this.gitAccount;
-                return transformedUrl.replace(/http:\/\//, `http://${username}:${password}@`);
-            }
-            return transformedUrl;
+            transformedUrl = url.replace(`git@${hostname}:`, `http://${hostname}/`);
         }
+        if (account) {
+            this.gitAccount = account;
+        }
+        if (this.gitAccount) {
+            const { username, password } = this.gitAccount;
+            return transformedUrl.replace(/http:\/\//, `http://${username}:${password}@`);
+        }
+        return transformedUrl;
     }
     getHostname(url) {
         if (/https?/.test(url)) {
             const match = url.match(/^http(s)?:\/\/(.*?)\//);
             return match[2];
         }
-        else {
-            const match = url.match(/@(.*):/);
-            return match[1];
-        }
+        const match = url.match(/@(.*):/);
+        return match[1];
     }
     async isSupportSSH(url) {
         var _a;

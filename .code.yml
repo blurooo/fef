@@ -1,5 +1,5 @@
 code-style:
-  max-report-count: 100
+  max-report-count: 20
   ts:
     exclusion-paths:
-      - dist/.*
+      - dist

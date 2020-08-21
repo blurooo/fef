@@ -6,7 +6,6 @@ import fs from '../fs';
  * link your code to system commands
  */
 export default class Linker {
-  
   private readonly currentOs: NodeJS.Platform;
 
   private readonly startCommand: string;
@@ -48,8 +47,8 @@ export default class Linker {
     const commandLink = path.join(binPath, name);
     const shellFile = this.shellFile(libPath, name);
     return Promise.all([
-        fs.unlink(commandLink),
-      fs.unlink(shellFile)
+      fs.unlink(commandLink),
+      fs.unlink(shellFile),
     ]);
   }
 
@@ -64,7 +63,7 @@ export default class Linker {
     binPath: string,
     libPath: string,
     command: string,
-    name?: string
+    name?: string,
   ) {
     await this.enableDir(binPath, libPath);
     const file = this.shellFile(libPath, name || command);
@@ -81,7 +80,8 @@ export default class Linker {
   private async link(source: string, target: string) {
     try {
       await fs.unlink(target);
-    } catch (e) {}
+    } catch (e) {
+    }
     return fs.symlink(source, target);
   }
 
@@ -89,7 +89,7 @@ export default class Linker {
     return fs.writeFile(file, content, {
       mode: this.fileMode,
       flag: 'w',
-      encoding: 'utf8'
+      encoding: 'utf8',
     });
   }
 
@@ -113,7 +113,7 @@ export default class Linker {
     if (!dirs) {
       return;
     }
-    return Promise.all(dirs.map(async dir => {
+    return Promise.all(dirs.map(async (dir) => {
       try {
         await fs.access(dir, fs.constants.F_OK);
       } catch (e) {

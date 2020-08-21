@@ -1,9 +1,8 @@
-import { platformType, arch } from './base';
+import { arch, platformType } from './base';
 import { lookpath } from 'lookpath';
 import { toArray } from '../utils/array';
 
 export class Dependencies {
-  
   os: string[];
 
   command: string[];
@@ -25,9 +24,7 @@ export class Dependencies {
     if (this.os.length === 0) {
       return;
     }
-    const i = this.os.findIndex(cur => {
-      return cur === platformType || cur === `${platformType}.${arch}`;
-    })
+    const i = this.os.findIndex(cur => cur === platformType || cur === `${platformType}.${arch}`);
     if (i === -1) {
       throw `the plugin does not support the ${platformType}.${arch} operating system`;
     }

@@ -1,4 +1,4 @@
-import { platformType, arch } from './base';
+import { arch, platformType } from './base';
 import { toArray } from '../utils/array';
 import { execSync } from 'child_process';
 import path from 'path';
@@ -14,8 +14,7 @@ type globalVal = {
 };
 
 export class Command {
-
-  private val: {[index:string]: string} = {} as globalVal;
+  private val: { [index: string]: string } = {} as globalVal;
 
   private commands: string[] = [];
 
@@ -53,8 +52,8 @@ export class Command {
 
   injectEnv() {
     // 注入依赖path
-    process.env['PATH'] = `${this.binPath}${path.delimiter}${process.env['PATH']}`;
-    process.env['FEF_PLUGIN_PATH'] = this.val.pd;
+    process.env.PATH = `${this.binPath}${path.delimiter}${process.env.PATH}`;
+    process.env.FEF_PLUGIN_PATH = this.val.pd;
   }
 
   run(...args: string[]) {
@@ -66,7 +65,7 @@ export class Command {
       }
       execSync(command, {
         stdio: 'inherit',
-        env: process.env
+        env: process.env,
       });
     }
   }
@@ -75,7 +74,7 @@ export class Command {
   runLess() {
     try {
       this.run();
-    } catch(e) {
+    } catch (e) {
       return;
     }
   }
