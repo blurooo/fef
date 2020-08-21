@@ -1,7 +1,7 @@
-import { platformType, arch, toArray } from './base';
-import { execSync, exec } from 'child_process';
+import { platformType, arch } from './base';
+import { toArray } from '../utils/array';
+import { execSync } from 'child_process';
 import path from 'path';
-import ExecResult from "../utils/exec-result";
 
 const valRegexp = new RegExp('\\${var:.*?}', 'ig');
 
@@ -17,13 +17,11 @@ export class Command {
 
   private val: {[index:string]: string} = {} as globalVal;
 
-  private ctx: any;
-
   private commands: string[] = [];
 
-  private binPath: string = '';
+  private readonly binPath: string = '';
 
-  constructor(ctx: any, pluginPath: string, command: any) {
+  constructor(pluginPath: string, command: any) {
     this.val.pd = pluginPath;
     this.binPath = path.join(pluginPath, '.bin');
     const osArchCommands = command?.[`${platformType}.${arch}`];
@@ -36,7 +34,6 @@ export class Command {
     } else if (defaultCommands) {
       this.commands = toArray(defaultCommands);
     }
-    this.ctx = ctx;
   }
 
   getCommands(): string[] {
@@ -54,11 +51,14 @@ export class Command {
     });
   }
 
-  run(...args: string[]) {
-    const envPath = `${this.binPath}${path.delimiter}${process.env['PATH']}`;
-    // 准入依赖path
-    process.env['PATH'] = envPath;
+  injectEnv() {
+    // 注入依赖path
+    process.env['PATH'] = `${this.binPath}${path.delimiter}${process.env['PATH']}`;
     process.env['FEF_PLUGIN_PATH'] = this.val.pd;
+  }
+
+  run(...args: string[]) {
+    this.injectEnv();
     const commands = this.getCommands();
     for (let command of commands) {
       if (args && args.length > 0) {
@@ -71,51 +71,11 @@ export class Command {
     }
   }
 
-  async runPipe(...args: string[]): Promise<ExecResult> {
-    const envPath = `${this.binPath}${path.delimiter}${process.env['PATH']}`;
-    // 准入依赖path
-    process.env['PATH'] = envPath;
-    const commands = this.getCommands();
-    let gStdout: string = '';
-    let gStderr: string = '';
-    let gErr: Error;
-    for (let command of commands) {
-      if (args && args.length > 0) {
-        command = `${command} ${args.join(' ')}`;
-      }
-      let result = await this.runCommandPipe(command, process.env);
-      if (result.stdout) {
-        gStdout += result.stdout.toString()
-      }
-      if (result.stderr) {
-        gStderr += result.stderr.toString()
-      }
-      if (result.err) {
-        gErr = result.err;
-        break;
-      }
-    }
-    // @ts-ignore
-    return Promise.resolve(new ExecResult(gErr, gStdout, gStderr));
-  }
-
-  private runCommandPipe(command: string, env: NodeJS.ProcessEnv): Promise<ExecResult> {
-    return new Promise((resolve) => {
-      exec(command, {
-        env
-      }, (err, stdout, stderr) => {
-        return resolve(new ExecResult(err, stdout, stderr));
-      });
-    });
-  }
-
   // exception not thrown
   runLess() {
     try {
       this.run();
     } catch(e) {
-      this.ctx.logger.debug(e);
-      this.ctx.logger.error(`[command interrupt] ${e}`);
       return;
     }
   }

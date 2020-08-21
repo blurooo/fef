@@ -1,5 +1,6 @@
-import { platformType, arch, toArray } from './base';
+import { platformType, arch } from './base';
 import { lookpath } from 'lookpath';
+import { toArray } from '../utils/array';
 
 export class Dependencies {
   

@@ -1,72 +1,63 @@
-import os from 'os';
+import config from './config';
 import path from 'path';
-import { Plugin } from './schema/plugin';
-import { parseYaml } from './utils/yaml';
 import * as core from '@actions/core';
 import { Git } from './install/git';
-import Linker from "./linker";
+import Linker from './linker';
+import {PluginInfo} from './install/plugin';
 
-const ymlFile = 'plugin.yml';
-const server = 'http://gui.oa.com/';
-const execName = 'ff';
+function enableCommand(workDir: string) {
+    const nodeCommand = process.argv[0];
+    const fefEnterFile = process.argv[1];
+    const curBinPath = path.join(workDir, "bin");
+    const libBinPath = path.join(workDir, "lib");
+    process.env['PATH'] = `${curBinPath}${path.delimiter}${process.env['PATH']}`;
+    const linker = new Linker(nodeCommand);
+    return linker.register(curBinPath, libBinPath, fefEnterFile, config.execName);
+}
 
-async function run(pluginPath: string) {
+async function enableEnv(plugin: string, silent: boolean): Promise<PluginInfo> {
+    const git = new Git(silent);
+    const [ pluginInfo ] = await Promise.all([
+        git.enablePlugin(plugin),
+        enableCommand(config.workPath)
+    ]);
+    return pluginInfo;
+}
+
+async function exec() {
     let fromAction = true;
+    let run;
+    let params;
+    let argv = process.argv.slice(2);
+    if (argv?.length > 0) {
+        fromAction = false;
+        run = argv[0];
+        params = argv.slice(1).join(' ');
+    } else {
+        run = core.getInput('run');
+        params = core.getInput('params');
+    }
+    const pluginInfo = await enableEnv(run, !fromAction);
     try {
-        let git = new Git(pluginPath, ymlFile, server, execName);
-
-        let argv = process.argv.slice(2);
-
-        const startCommand = process.argv[0];
-        const command = process.argv[1];
-
-        const curBinPath = path.join(pluginPath, "bin")
-        new Linker(startCommand).register(curBinPath, path.join(pluginPath, "lib"), command, execName);
-
-        process.env['PATH'] = `${curBinPath}${path.delimiter}${process.env['PATH']}`;
-
-        let run = '';
-        let params = '';
-
-        if (argv?.length > 0) {
-            fromAction = false;
-            run = argv[0];
-            params = argv.slice(1).join(' ');
-        } else {
-            run = core.getInput('run');
-            params = core.getInput('params');
-        }
-
-        const failedWhenNonZeroExit = core.getInput('failedWhenNonZeroExit');
-
-        const pkgInfo = await git.download(run);
-
-        const pkgPath = path.join(pluginPath, `${pkgInfo.pkg}@${pkgInfo.ver}`);
-
-        const config = await parseYaml(path.join(pkgPath, 'plugin.yml'));
-
-        const plugin = new Plugin({}, pkgPath, config);
-
-        try {
-            plugin.command.run(params);
-        } catch (err) {
-            if (fromAction && err?.status) {
-                core.setOutput("code",  err.status);
-                if (failedWhenNonZeroExit) {
-                    core.setFailed(err.toString());
-                }
-                return;
-            }
-        }
+        await execPlugin(pluginInfo, params);
         fromAction && core.setOutput("code",  0);
-    } catch (e) {
-        if (fromAction) {
-            core.setFailed(e?.toString());
-            console.error(e);
-        } else {
-            throw e;
+    } catch (err) {
+        if (!fromAction) {
+            throw err
+        }
+        core.setOutput("code",  err?.status || 1);
+        const failedWhenNonZeroExit = core.getInput('failedWhenNonZeroExit');
+        if (failedWhenNonZeroExit) {
+            core.setFailed(err?.toString());
         }
     }
 }
 
-run(path.join(os.homedir(), 'fef'));
+async function execPlugin(pluginInfo: PluginInfo, params: string) {
+    const protocol = await pluginInfo.getProtocol();
+    protocol.command.run(params);
+}
+
+exec().catch(e => {
+    process.exit(e?.status || 1);
+});

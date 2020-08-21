@@ -1,72 +1,52 @@
-import { exec } from 'child_process';
 import path from 'path';
-import fs from 'fs';
-import util from 'util';
+import fs from '../fs';
 import rp from 'request-promise';
 import VersionStyle from '../dep/version';
-import { parseYaml } from '../utils/yaml';
-import { Plugin } from '../schema/plugin';
 import Linker from "../linker";
+import util from "util";
+import { exec } from 'child_process';
+import { PluginInfo } from "./plugin";
+import config from '../config';
 
-const symlink = util.promisify(fs.symlink);
-const unlink = util.promisify(fs.unlink);
 const execAsync = util.promisify(exec);
-const stat = util.promisify(fs.stat);
-
-class PkgInfo {
-
-    pkg: string;
-    checkoutTag: string;
-    ver: string;
-
-    constructor(pkg: string, ver: string, checkoutTag: string) {
-        this.pkg = pkg;
-        this.ver = ver;
-        this.checkoutTag = checkoutTag;
-    }
-
-}
 
 export class Git {
-
-    private readonly pkgRootDir: string;
-
-    private readonly ymlFile: string;
-
-    private readonly server: string;
-
-    private readonly execName: string;
 
     private gitAccount: any;
 
     private isSSH: boolean = false;
 
-    constructor(pkgRootDir: string, ymlFile: string, server: string, execName: string) {
-        this.pkgRootDir = pkgRootDir;
-        this.ymlFile = ymlFile;
-        this.server = server;
-        this.execName = execName;
+    private readonly silent: boolean;
+
+    constructor(silent: boolean) {
+        this.silent = silent;
     }
 
-    async download(pkgVer: string): Promise<PkgInfo> {
-        let [ pkg, ver ] = pkgVer.split('@');
-        let pkgFullName = pkg;
-        if (!pkg.startsWith('feflow-plugin-')) {
-            pkgFullName = 'feflow-plugin-' + pkg;
+    async enablePlugin(pluginVer: string): Promise<PluginInfo> {
+        let [ plugin, ver ] = pluginVer.split('@');
+        let pluginFullName = plugin;
+        if (!plugin.startsWith(config.pluginPrefix)) {
+            pluginFullName = config.pluginPrefix + plugin;
         } else {
-            pkg = pkg.substring('feflow-plugin-'.length);
+            plugin = plugin.substring(config.pluginPrefix.length);
         }
-        if (!ver) {
+        if (!ver || ver === 'latest') {
             ver = 'latest';
         }
-        let linkPath = path.join(this.pkgRootDir, `${pkg}@${ver}`);
+        ver = VersionStyle.toFull(ver);
+        if (!VersionStyle.check(ver)) {
+            return Promise.reject(`invalid version: ${pluginVer}`);
+        }
+        const pluginInfo = new PluginInfo(config.pluginRootDir, plugin, ver, config.protocolFileName);
         try {
-            fs.accessSync(linkPath, fs.constants.F_OK);
-            return new PkgInfo(pkg, ver, '');;
+            // 完成标志存在则不需要下载
+            const doneFile = path.join(pluginInfo.pluginPath, config.fefDoneFile);
+            await fs.access(doneFile, fs.constants.F_OK);
+            return pluginInfo;
         } catch (e) {}
-        let url = await this.getRepoInfo(pkgFullName);
+        let url = await this.getRepoInfo(pluginFullName);
         if (!url) {
-            return Promise.reject(`unknown pkg: ${pkgFullName}`)
+            return Promise.reject(`unknown pkg: ${pluginFullName}`)
         }
         let checkTag: string = '';
         if (ver === 'latest') {
@@ -85,44 +65,50 @@ export class Git {
                 checkTag = ver;
             }
         }
-        const pkgPath = path.join(this.pkgRootDir, `${pkg}@${checkTag}`);
-        if (!fs.existsSync(pkgPath)) {
+        pluginInfo.checkoutTag = checkTag;
+        const pluginRealPath = pluginInfo.getPluginRealPath();
+        try {
+            await fs.access(pluginRealPath);
+        } catch (e) {
             try {
-                console.log(`download ${pkg}@${ver} from ${url}`);
-                await this.clone(url, checkTag, pkgPath);
+                this.silent || console.log(`download ${plugin}@${ver} from ${url}`);
+                await this.clone(url, checkTag, pluginRealPath);
             } catch(e) {
                 return Promise.reject(e);
             }
         }
         if (ver === 'latest') {
-            await this.link(pkgPath, linkPath);
+            await fs.link(pluginRealPath, pluginInfo.pluginPath);
         }
-        await this.downloadDep(pkgPath);
-        return new PkgInfo(pkg, ver, checkTag);
+        await this.enableDeps(pluginInfo);
+        return pluginInfo;
     }
 
-    async link(source: string, target: string) {
-        try {
-            await unlink(target);
-        } catch (e) {}
-        return symlink(source, target);
-    }
-
-    async downloadDep(pkgPath: string) {
-        const config = await parseYaml(path.join(pkgPath, this.ymlFile));
-        const plugin = new Plugin({}, pkgPath, config);
-        const binPath = path.join(pkgPath, '.bin');
-        const libPath = path.join(pkgPath, '.lib');
-        return Promise.all(plugin.dep.plugin.map(pkg => {
-            return this.download(pkg).then(pkgInfo => {
-                new Linker(this.execName).register(binPath, libPath, `${pkgInfo.pkg}@${pkgInfo.ver}`, pkgInfo.pkg);
-            })
-        }));
+    async enableDeps(pluginInfo: PluginInfo) {
+        const pluginPath = pluginInfo.getPluginRealPath();
+        const binPath = path.join(pluginPath, '.bin');
+        const libPath = path.join(pluginPath, '.lib');
+        const protocol = await pluginInfo.getProtocol();
+        const tasks = protocol.dep.plugin.map(plugin => {
+            return this.enablePlugin(plugin).then(depPluginInfo => {
+                const linker = new Linker(config.execName);
+                const command = `${depPluginInfo.pluginName}@${depPluginInfo.ver}`;
+                return linker.register(binPath, libPath, command, depPluginInfo.pluginName);
+            });
+        });
+        // 写入安装完成标志
+        return Promise.all(tasks).then(() => {
+            const doneFile = path.join(pluginPath, config.fefDoneFile);
+            return fs.writeFile(doneFile, '', {
+                flag: 'w',
+                encoding: 'utf8'
+            });
+        });
     }
 
     async getRepoInfo(packageName: string): Promise<string> {
         const options = {
-            url: `${this.server}apply/getlist?name=${packageName}`,
+            url: `${config.storeUrl}apply/getlist?name=${packageName}`,
             method: 'GET'
         };
         return rp(options).then((response: any) => {
@@ -132,10 +118,7 @@ export class Git {
         })
     }
 
-    async getTag(
-        repoUrl: string,
-        version?: string
-    ) {
+    async getTag(repoUrl: string, version?: string) {
         const { stdout } = await execAsync(`git ls-remote --tags --refs ${repoUrl}`, {
             timeout: 2000,
             windowsHide: true

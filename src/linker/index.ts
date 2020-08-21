@@ -1,21 +1,21 @@
 import os from 'os';
 import path from 'path';
-import fs from 'fs';
+import fs from '../fs';
 
 /**
  * link your code to system commands
  */
 export default class Linker {
   
-  private currentOs: NodeJS.Platform;
+  private readonly currentOs: NodeJS.Platform;
 
-  private startCommand: string = 'fef';
+  private readonly startCommand: string;
 
   private fileMode = 0o744;
 
-  constructor(startCommand?: string) {
+  constructor(startCommand: string) {
     this.currentOs = os.platform();
-    startCommand && (this.startCommand = startCommand);
+    this.startCommand = startCommand;
   }
 
   /**
@@ -25,68 +25,64 @@ export default class Linker {
    * @param command it could be checkstyle or checkstyle@v0.0.5
    * @param name    always checkstyle, use command when it does not exist
    */
-  register(binPath: string, libPath: string, command: string, name?: string) {
+  async register(binPath: string, libPath: string, command: string, name?: string) {
     if (this.currentOs === 'win32') {
-      this.linkToWin32(binPath, command, name);
-    } else {
-      this.linkToUnixLike(binPath, libPath, command, name);
+      return this.linkToWin32(binPath, command, name);
     }
+    return this.linkToUnixLike(binPath, libPath, command, name);
   }
 
-  remove(binPath: string, libPath: string, name: string) {
+  async remove(binPath: string, libPath: string, name: string) {
     if (this.currentOs === 'win32') {
-      this.removeOnWin32(binPath, name);
-    } else {
-      this.removeOnUnixLike(binPath, libPath, name);
+      return this.removeOnWin32(binPath, name);
     }
+    return this.removeOnUnixLike(binPath, libPath, name);
   }
 
   private removeOnWin32(binPath: string, name: string) {
     const cmdFile = this.cmdFile(binPath, name);
-    fs.unlinkSync(cmdFile);
+    return fs.unlink(cmdFile);
   }
 
-  private removeOnUnixLike(binPath: string, libPath: string, name: string) {
+  private async removeOnUnixLike(binPath: string, libPath: string, name: string) {
     const commandLink = path.join(binPath, name);
-    fs.unlinkSync(commandLink);
     const shellFile = this.shellFile(libPath, name);
-    fs.unlinkSync(shellFile);
+    return Promise.all([
+        fs.unlink(commandLink),
+      fs.unlink(shellFile)
+    ]);
   }
 
-  private linkToWin32(binPath: string, command: string, name?: string) {
+  private async linkToWin32(binPath: string, command: string, name?: string) {
     const file = this.cmdFile(binPath, name || command);
-    this.enableDir(binPath);
+    await this.enableDir(binPath);
     const template = this.cmdTemplate(command);
-    this.writeExecFile(file, template);
+    return this.writeExecFile(file, template);
   }
 
-  private linkToUnixLike(
+  private async linkToUnixLike(
     binPath: string,
     libPath: string,
     command: string,
     name?: string
   ) {
-    this.enableDir(binPath, libPath);
+    await this.enableDir(binPath, libPath);
     const file = this.shellFile(libPath, name || command);
     const template = this.shellTemplate(command);
     const commandLink = path.join(binPath, name || command);
-    this.writeExecFile(file, template);
-    if (fs.existsSync(commandLink) && fs.statSync(commandLink).isSymbolicLink) {
-      return;
-    }
-    fs.symlinkSync(file, commandLink);
+    await this.writeExecFile(file, template);
+    return this.link(file, commandLink);
+  }
+
+  private async link(source: string, target: string) {
+    try {
+      await fs.unlink(target);
+    } catch (e) {}
+    return fs.symlink(source, target);
   }
 
   private writeExecFile(file: string, content: string) {
-    const exists = fs.existsSync(file);
-    if (exists) {
-      try {
-        fs.accessSync(file, fs.constants.X_OK);
-      } catch (e) {
-        fs.chmodSync(file, this.fileMode);
-      }
-    }
-    fs.writeFileSync(file, content, {
+    return fs.writeFile(file, content, {
       mode: this.fileMode,
       flag: 'w',
       encoding: 'utf8'
@@ -109,18 +105,16 @@ export default class Linker {
     return path.join(binPath, `${name}.cmd`);
   }
 
-  private enableDir(...dirs: string[]) {
+  private async enableDir(...dirs: string[]) {
     if (!dirs) {
       return;
     }
-    dirs.forEach((d) => {
-      if (fs.existsSync(d) && fs.statSync(d).isFile()) {
-        fs.unlinkSync(d);
+    return Promise.all(dirs.map(async dir => {
+      try {
+        await fs.access(dir, fs.constants.F_OK);
+      } catch (e) {
+        return fs.mkdir(dir, { recursive: true });
       }
-
-      if (!fs.existsSync(d)) {
-        fs.mkdirSync(d, { recursive: true });
-      }
-    });
+    }));
   }
 }
