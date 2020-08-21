@@ -33,7 +33,7 @@ async function exec() {
         fromAction = false;
         run = argv[0];
         params = argv.slice(1).filter(a => {
-            return a !== '--disable-check'
+            return !config.filterParams.includes(a);
         }).join(' ');
     } else {
         run = core.getInput('run');

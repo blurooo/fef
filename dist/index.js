@@ -9085,7 +9085,7 @@ async function exec() {
         fromAction = false;
         run = argv[0];
         params = argv.slice(1).filter(a => {
-            return a !== '--disable-check';
+            return !config_1.default.filterParams.includes(a);
         }).join(' ');
     }
     else {
@@ -39060,6 +39060,8 @@ exports.default = {
     pluginPrefix: 'feflow-plugin-',
     // 安装成功标志
     fefDoneFile: '.fef.done',
+    // 过滤参数
+    filterParams: ['--disable-check']
 };
 //# sourceMappingURL=index.js.map
 
