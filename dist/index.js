@@ -9084,7 +9084,9 @@ async function exec() {
     if ((argv === null || argv === void 0 ? void 0 : argv.length) > 0) {
         fromAction = false;
         run = argv[0];
-        params = argv.slice(1).join(' ');
+        params = argv.slice(1).filter(a => {
+            return a !== '--disable-check';
+        }).join(' ');
     }
     else {
         run = core.getInput('run');
