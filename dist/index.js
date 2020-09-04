@@ -56,7 +56,47 @@ module.exports =
 /* 3 */,
 /* 4 */,
 /* 5 */,
-/* 6 */,
+/* 6 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+Object.defineProperty(exports,"__esModule",{value:true});exports.getSignals=void 0;var _os=__webpack_require__(87);
+
+var _core=__webpack_require__(252);
+var _realtime=__webpack_require__(171);
+
+
+
+const getSignals=function(){
+const realtimeSignals=(0,_realtime.getRealtimeSignals)();
+const signals=[..._core.SIGNALS,...realtimeSignals].map(normalizeSignal);
+return signals;
+};exports.getSignals=getSignals;
+
+
+
+
+
+
+
+const normalizeSignal=function({
+name,
+number:defaultNumber,
+description,
+action,
+forced=false,
+standard})
+{
+const{
+signals:{[name]:constantSignal}}=
+_os.constants;
+const supported=constantSignal!==undefined;
+const number=supported?constantSignal:defaultNumber;
+return{name,number,description,supported,action,forced,standard};
+};
+//# sourceMappingURL=signals.js.map
+
+/***/ }),
 /* 7 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -1073,7 +1113,32 @@ return {
 
 
 /***/ }),
-/* 8 */,
+/* 8 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const shebangRegex = __webpack_require__(675);
+
+module.exports = (string = '') => {
+	const match = string.match(shebangRegex);
+
+	if (!match) {
+		return null;
+	}
+
+	const [path, argument] = match[0].replace(/#! ?/, '').split(' ');
+	const binary = path.split('/').pop();
+
+	if (binary === 'env') {
+		return argument;
+	}
+
+	return argument ? `${binary} ${argument}` : binary;
+};
+
+
+/***/ }),
 /* 9 */,
 /* 10 */,
 /* 11 */
@@ -1315,7 +1380,7 @@ module.exports = validRange
 "use strict";
 
 
-var common = __webpack_require__(23);
+var common = __webpack_require__(398);
 var Type   = __webpack_require__(616);
 
 function isHexCode(c) {
@@ -1496,68 +1561,53 @@ module.exports = {"$id":"cookie.json#","$schema":"http://json-schema.org/draft-0
 
 /***/ }),
 /* 23 */
-/***/ (function(module) {
+/***/ (function(module, __unusedexports, __webpack_require__) {
 
 "use strict";
 
+const mimicFn = __webpack_require__(697);
 
+const calledFunctions = new WeakMap();
 
-function isNothing(subject) {
-  return (typeof subject === 'undefined') || (subject === null);
-}
+const onetime = (function_, options = {}) => {
+	if (typeof function_ !== 'function') {
+		throw new TypeError('Expected a function');
+	}
 
+	let returnValue;
+	let callCount = 0;
+	const functionName = function_.displayName || function_.name || '<anonymous>';
 
-function isObject(subject) {
-  return (typeof subject === 'object') && (subject !== null);
-}
+	const onetime = function (...arguments_) {
+		calledFunctions.set(onetime, ++callCount);
 
+		if (callCount === 1) {
+			returnValue = function_.apply(this, arguments_);
+			function_ = null;
+		} else if (options.throw === true) {
+			throw new Error(`Function \`${functionName}\` can only be called once`);
+		}
 
-function toArray(sequence) {
-  if (Array.isArray(sequence)) return sequence;
-  else if (isNothing(sequence)) return [];
+		return returnValue;
+	};
 
-  return [ sequence ];
-}
+	mimicFn(onetime, function_);
+	calledFunctions.set(onetime, callCount);
 
+	return onetime;
+};
 
-function extend(target, source) {
-  var index, length, key, sourceKeys;
+module.exports = onetime;
+// TODO: Remove this for the next major release
+module.exports.default = onetime;
 
-  if (source) {
-    sourceKeys = Object.keys(source);
+module.exports.callCount = function_ => {
+	if (!calledFunctions.has(function_)) {
+		throw new Error(`The given function \`${function_.name}\` is not wrapped by the \`onetime\` package`);
+	}
 
-    for (index = 0, length = sourceKeys.length; index < length; index += 1) {
-      key = sourceKeys[index];
-      target[key] = source[key];
-    }
-  }
-
-  return target;
-}
-
-
-function repeat(string, count) {
-  var result = '', cycle;
-
-  for (cycle = 0; cycle < count; cycle += 1) {
-    result += string;
-  }
-
-  return result;
-}
-
-
-function isNegativeZero(number) {
-  return (number === 0) && (Number.NEGATIVE_INFINITY === 1 / number);
-}
-
-
-module.exports.isNothing      = isNothing;
-module.exports.isObject       = isObject;
-module.exports.toArray        = toArray;
-module.exports.repeat         = repeat;
-module.exports.isNegativeZero = isNegativeZero;
-module.exports.extend         = extend;
+	return calledFunctions.get(function_);
+};
 
 
 /***/ }),
@@ -4479,7 +4529,94 @@ exports.debug = debug // for test
 /***/ }),
 /* 68 */,
 /* 69 */,
-/* 70 */,
+/* 70 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+var once = __webpack_require__(603)
+var eos = __webpack_require__(832)
+var fs = __webpack_require__(747) // we only need fs to get the ReadStream and WriteStream prototypes
+
+var noop = function () {}
+var ancient = /^v?\.0/.test(process.version)
+
+var isFn = function (fn) {
+  return typeof fn === 'function'
+}
+
+var isFS = function (stream) {
+  if (!ancient) return false // newer node version do not need to care about fs is a special way
+  if (!fs) return false // browser
+  return (stream instanceof (fs.ReadStream || noop) || stream instanceof (fs.WriteStream || noop)) && isFn(stream.close)
+}
+
+var isRequest = function (stream) {
+  return stream.setHeader && isFn(stream.abort)
+}
+
+var destroyer = function (stream, reading, writing, callback) {
+  callback = once(callback)
+
+  var closed = false
+  stream.on('close', function () {
+    closed = true
+  })
+
+  eos(stream, {readable: reading, writable: writing}, function (err) {
+    if (err) return callback(err)
+    closed = true
+    callback()
+  })
+
+  var destroyed = false
+  return function (err) {
+    if (closed) return
+    if (destroyed) return
+    destroyed = true
+
+    if (isFS(stream)) return stream.close(noop) // use close for fs streams to avoid fd leaks
+    if (isRequest(stream)) return stream.abort() // request.destroy just do .end - .abort is what we want
+
+    if (isFn(stream.destroy)) return stream.destroy()
+
+    callback(err || new Error('stream was destroyed'))
+  }
+}
+
+var call = function (fn) {
+  fn()
+}
+
+var pipe = function (from, to) {
+  return from.pipe(to)
+}
+
+var pump = function () {
+  var streams = Array.prototype.slice.call(arguments)
+  var callback = isFn(streams[streams.length - 1] || noop) && streams.pop() || noop
+
+  if (Array.isArray(streams[0])) streams = streams[0]
+  if (streams.length < 2) throw new Error('pump requires two streams per minimum')
+
+  var error
+  var destroys = streams.map(function (stream, i) {
+    var reading = i < streams.length - 1
+    var writing = i > 0
+    return destroyer(stream, reading, writing, function (err) {
+      if (!error) error = err
+      if (err) destroys.forEach(call)
+      if (reading) return
+      destroys.forEach(call)
+      callback(error)
+    })
+  })
+
+  return streams.reduce(pipe)
+}
+
+module.exports = pump
+
+
+/***/ }),
 /* 71 */
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -6103,7 +6240,269 @@ module.exports = SemVer
 
 /***/ }),
 /* 95 */,
-/* 96 */,
+/* 96 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const path = __webpack_require__(622);
+const childProcess = __webpack_require__(129);
+const crossSpawn = __webpack_require__(296);
+const stripFinalNewline = __webpack_require__(337);
+const npmRunPath = __webpack_require__(944);
+const onetime = __webpack_require__(23);
+const makeError = __webpack_require__(115);
+const normalizeStdio = __webpack_require__(501);
+const {spawnedKill, spawnedCancel, setupTimeout, setExitHandler} = __webpack_require__(649);
+const {handleInput, getSpawnedResult, makeAllStream, validateInputSync} = __webpack_require__(169);
+const {mergePromise, getSpawnedPromise} = __webpack_require__(852);
+const {joinCommand, parseCommand} = __webpack_require__(420);
+
+const DEFAULT_MAX_BUFFER = 1000 * 1000 * 100;
+
+const getEnv = ({env: envOption, extendEnv, preferLocal, localDir, execPath}) => {
+	const env = extendEnv ? {...process.env, ...envOption} : envOption;
+
+	if (preferLocal) {
+		return npmRunPath.env({env, cwd: localDir, execPath});
+	}
+
+	return env;
+};
+
+const handleArguments = (file, args, options = {}) => {
+	const parsed = crossSpawn._parse(file, args, options);
+	file = parsed.command;
+	args = parsed.args;
+	options = parsed.options;
+
+	options = {
+		maxBuffer: DEFAULT_MAX_BUFFER,
+		buffer: true,
+		stripFinalNewline: true,
+		extendEnv: true,
+		preferLocal: false,
+		localDir: options.cwd || process.cwd(),
+		execPath: process.execPath,
+		encoding: 'utf8',
+		reject: true,
+		cleanup: true,
+		all: false,
+		windowsHide: true,
+		...options
+	};
+
+	options.env = getEnv(options);
+
+	options.stdio = normalizeStdio(options);
+
+	if (process.platform === 'win32' && path.basename(file, '.exe') === 'cmd') {
+		// #116
+		args.unshift('/q');
+	}
+
+	return {file, args, options, parsed};
+};
+
+const handleOutput = (options, value, error) => {
+	if (typeof value !== 'string' && !Buffer.isBuffer(value)) {
+		// When `execa.sync()` errors, we normalize it to '' to mimic `execa()`
+		return error === undefined ? undefined : '';
+	}
+
+	if (options.stripFinalNewline) {
+		return stripFinalNewline(value);
+	}
+
+	return value;
+};
+
+const execa = (file, args, options) => {
+	const parsed = handleArguments(file, args, options);
+	const command = joinCommand(file, args);
+
+	let spawned;
+	try {
+		spawned = childProcess.spawn(parsed.file, parsed.args, parsed.options);
+	} catch (error) {
+		// Ensure the returned error is always both a promise and a child process
+		const dummySpawned = new childProcess.ChildProcess();
+		const errorPromise = Promise.reject(makeError({
+			error,
+			stdout: '',
+			stderr: '',
+			all: '',
+			command,
+			parsed,
+			timedOut: false,
+			isCanceled: false,
+			killed: false
+		}));
+		return mergePromise(dummySpawned, errorPromise);
+	}
+
+	const spawnedPromise = getSpawnedPromise(spawned);
+	const timedPromise = setupTimeout(spawned, parsed.options, spawnedPromise);
+	const processDone = setExitHandler(spawned, parsed.options, timedPromise);
+
+	const context = {isCanceled: false};
+
+	spawned.kill = spawnedKill.bind(null, spawned.kill.bind(spawned));
+	spawned.cancel = spawnedCancel.bind(null, spawned, context);
+
+	const handlePromise = async () => {
+		const [{error, exitCode, signal, timedOut}, stdoutResult, stderrResult, allResult] = await getSpawnedResult(spawned, parsed.options, processDone);
+		const stdout = handleOutput(parsed.options, stdoutResult);
+		const stderr = handleOutput(parsed.options, stderrResult);
+		const all = handleOutput(parsed.options, allResult);
+
+		if (error || exitCode !== 0 || signal !== null) {
+			const returnedError = makeError({
+				error,
+				exitCode,
+				signal,
+				stdout,
+				stderr,
+				all,
+				command,
+				parsed,
+				timedOut,
+				isCanceled: context.isCanceled,
+				killed: spawned.killed
+			});
+
+			if (!parsed.options.reject) {
+				return returnedError;
+			}
+
+			throw returnedError;
+		}
+
+		return {
+			command,
+			exitCode: 0,
+			stdout,
+			stderr,
+			all,
+			failed: false,
+			timedOut: false,
+			isCanceled: false,
+			killed: false
+		};
+	};
+
+	const handlePromiseOnce = onetime(handlePromise);
+
+	crossSpawn._enoent.hookChildProcess(spawned, parsed.parsed);
+
+	handleInput(spawned, parsed.options.input);
+
+	spawned.all = makeAllStream(spawned, parsed.options);
+
+	return mergePromise(spawned, handlePromiseOnce);
+};
+
+module.exports = execa;
+
+module.exports.sync = (file, args, options) => {
+	const parsed = handleArguments(file, args, options);
+	const command = joinCommand(file, args);
+
+	validateInputSync(parsed.options);
+
+	let result;
+	try {
+		result = childProcess.spawnSync(parsed.file, parsed.args, parsed.options);
+	} catch (error) {
+		throw makeError({
+			error,
+			stdout: '',
+			stderr: '',
+			all: '',
+			command,
+			parsed,
+			timedOut: false,
+			isCanceled: false,
+			killed: false
+		});
+	}
+
+	const stdout = handleOutput(parsed.options, result.stdout, result.error);
+	const stderr = handleOutput(parsed.options, result.stderr, result.error);
+
+	if (result.error || result.status !== 0 || result.signal !== null) {
+		const error = makeError({
+			stdout,
+			stderr,
+			error: result.error,
+			signal: result.signal,
+			exitCode: result.status,
+			command,
+			parsed,
+			timedOut: result.error && result.error.code === 'ETIMEDOUT',
+			isCanceled: false,
+			killed: result.signal !== null
+		});
+
+		if (!parsed.options.reject) {
+			return error;
+		}
+
+		throw error;
+	}
+
+	return {
+		command,
+		exitCode: 0,
+		stdout,
+		stderr,
+		failed: false,
+		timedOut: false,
+		isCanceled: false,
+		killed: false
+	};
+};
+
+module.exports.command = (command, options) => {
+	const [file, ...args] = parseCommand(command);
+	return execa(file, args, options);
+};
+
+module.exports.commandSync = (command, options) => {
+	const [file, ...args] = parseCommand(command);
+	return execa.sync(file, args, options);
+};
+
+module.exports.node = (scriptPath, args, options = {}) => {
+	if (args && !Array.isArray(args) && typeof args === 'object') {
+		options = args;
+		args = [];
+	}
+
+	const stdio = normalizeStdio.node(options);
+
+	const {nodePath = process.execPath, nodeOptions = process.execArgv} = options;
+
+	return execa(
+		nodePath,
+		[
+			...nodeOptions,
+			scriptPath,
+			...(Array.isArray(args) ? args : [])
+		],
+		{
+			...options,
+			stdin: undefined,
+			stdout: undefined,
+			stderr: undefined,
+			stdio,
+			shell: false
+		}
+	);
+};
+
+
+/***/ }),
 /* 97 */,
 /* 98 */,
 /* 99 */,
@@ -7984,13 +8383,194 @@ module.exports = {
 /***/ }),
 /* 113 */,
 /* 114 */,
-/* 115 */,
-/* 116 */,
+/* 115 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const {signalsByName} = __webpack_require__(157);
+
+const getErrorPrefix = ({timedOut, timeout, errorCode, signal, signalDescription, exitCode, isCanceled}) => {
+	if (timedOut) {
+		return `timed out after ${timeout} milliseconds`;
+	}
+
+	if (isCanceled) {
+		return 'was canceled';
+	}
+
+	if (errorCode !== undefined) {
+		return `failed with ${errorCode}`;
+	}
+
+	if (signal !== undefined) {
+		return `was killed with ${signal} (${signalDescription})`;
+	}
+
+	if (exitCode !== undefined) {
+		return `failed with exit code ${exitCode}`;
+	}
+
+	return 'failed';
+};
+
+const makeError = ({
+	stdout,
+	stderr,
+	all,
+	error,
+	signal,
+	exitCode,
+	command,
+	timedOut,
+	isCanceled,
+	killed,
+	parsed: {options: {timeout}}
+}) => {
+	// `signal` and `exitCode` emitted on `spawned.on('exit')` event can be `null`.
+	// We normalize them to `undefined`
+	exitCode = exitCode === null ? undefined : exitCode;
+	signal = signal === null ? undefined : signal;
+	const signalDescription = signal === undefined ? undefined : signalsByName[signal].description;
+
+	const errorCode = error && error.code;
+
+	const prefix = getErrorPrefix({timedOut, timeout, errorCode, signal, signalDescription, exitCode, isCanceled});
+	const execaMessage = `Command ${prefix}: ${command}`;
+	const isError = Object.prototype.toString.call(error) === '[object Error]';
+	const shortMessage = isError ? `${execaMessage}\n${error.message}` : execaMessage;
+	const message = [shortMessage, stderr, stdout].filter(Boolean).join('\n');
+
+	if (isError) {
+		error.originalMessage = error.message;
+		error.message = message;
+	} else {
+		error = new Error(message);
+	}
+
+	error.shortMessage = shortMessage;
+	error.command = command;
+	error.exitCode = exitCode;
+	error.signal = signal;
+	error.signalDescription = signalDescription;
+	error.stdout = stdout;
+	error.stderr = stderr;
+
+	if (all !== undefined) {
+		error.all = all;
+	}
+
+	if ('bufferedData' in error) {
+		delete error.bufferedData;
+	}
+
+	error.failed = true;
+	error.timedOut = Boolean(timedOut);
+	error.isCanceled = isCanceled;
+	error.killed = killed && !timedOut;
+
+	return error;
+};
+
+module.exports = makeError;
+
+
+/***/ }),
+/* 116 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const {PassThrough: PassThroughStream} = __webpack_require__(413);
+
+module.exports = options => {
+	options = {...options};
+
+	const {array} = options;
+	let {encoding} = options;
+	const isBuffer = encoding === 'buffer';
+	let objectMode = false;
+
+	if (array) {
+		objectMode = !(encoding || isBuffer);
+	} else {
+		encoding = encoding || 'utf8';
+	}
+
+	if (isBuffer) {
+		encoding = null;
+	}
+
+	const stream = new PassThroughStream({objectMode});
+
+	if (encoding) {
+		stream.setEncoding(encoding);
+	}
+
+	let length = 0;
+	const chunks = [];
+
+	stream.on('data', chunk => {
+		chunks.push(chunk);
+
+		if (objectMode) {
+			length = chunks.length;
+		} else {
+			length += chunk.length;
+		}
+	});
+
+	stream.getBufferedValue = () => {
+		if (array) {
+			return chunks;
+		}
+
+		return isBuffer ? Buffer.concat(chunks, length) : chunks.join('');
+	};
+
+	stream.getBufferedLength = () => length;
+
+	return stream;
+};
+
+
+/***/ }),
 /* 117 */,
 /* 118 */,
 /* 119 */,
 /* 120 */,
-/* 121 */,
+/* 121 */
+/***/ (function(module) {
+
+const constants = {
+    TIMEOUT_FLAG: 'bobolink_timeout',
+    // 只用于内部状态判断，表明需要重试
+    RETRY_FLAG: 'bobolink_retry',
+    UNKNOWN_ERR: 'bobolink_unknown_error',
+    EXCEEDED: 'bobolink_exceeded_maximum_task_number',
+    INVALID: 'bobolink_invalid',
+    // 按频率调度模式
+    SCHEDULE_MODE_FREQUENCY: 'frequency',
+    // 立即调度模式
+    SCHEDULE_MODE_IMMEDIATELY: 'immediately',
+    // 饱和策略：终止
+    SATURATION_POLICY_ABORT: 'abort',
+    // 饱和策略：丢弃最早任务
+    SATURATION_POLICY_DISCARD_OLDEST: 'discardOldest',
+    // 任务模型，表明put进来的数据
+    TASK_MODE_DATA: 'data',
+    // 任务模型，表明put进来的是函数
+    TASK_MODE_FUNCTION: 'function',
+    TASK_ERROR: 'bobolink_unsupported_task_type',
+    // 任务被移除
+    DISCARD: 'bobolink_discard',
+    EMPTY_ELEMENTS: 'bobolink_empty_elements'
+};
+
+
+module.exports = constants;
+
+/***/ }),
 /* 122 */,
 /* 123 */,
 /* 124 */,
@@ -8488,8 +9068,233 @@ function wrap(txt, len) {
 
 /***/ }),
 /* 144 */,
-/* 145 */,
-/* 146 */,
+/* 145 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+const utils = __webpack_require__(992);
+const constants = __webpack_require__(121);
+/**
+ * @typedef  {Object}   options                     - 配置项
+ * @property {number}   [concurrency=5]             - 任务的并发数量，默认为5
+ * @property {number}   [timeout=15000]             - 任务的超时时间（ms），默认为15000，设置为0则不超时
+ * @property {number}   [retry=0]                   - 任务失败时的重试次数，默认为0
+ * @property {boolean}  [retryPrior=false]          - 是否优先处理重试任务，默认为false，如果设置为true，则失败重试的任务会被放置到队列头部
+ * @property {boolean}  [newPrior=false]            - 是否优先处理新任务，默认为false，如果设置为true，则新加入的任务会被放置到队列头部
+ * @property {function} [catch=]                    - 任务失败时的抓取函数，默认为null，任务多次失败重试会回调多次catch
+ * @property {number}   [max=65536]                 - 任务队列的上限，-1为没有上限，默认为65536
+ * @property {string}   [scheduleMode=immediately]  - 任务调度模式。
+ * - frequency（按频率调度，每秒）
+ * - immediately（立即调度，任务提交立即执行）
+ * @property {number}   [countPerTimeScale=100]     - 当调度模式为frequency时，可通过此参数指定每个时间刻度调度的任务数，默认为100。真实的并发数不会超过concurrency。
+ * - 设置为-1则每次都调度队列中的所有任务
+ * @property {number}   [timeScale=1]               - 时间刻度（s），默认为1s
+ * @property {string}   [taskMode=]                 - 指明任务模式。
+ * - 可选值为data（put数据）和function（put函数）。
+ * - 没有设置时将根据第一个任务的类型自行推断。
+ * @property {function} [handler=]                  - 当任务模式为data时，每次执行任务将回调handler，并传入当次任务对应的data。
+ * - 要求返回一个Promise。
+ * @property {string}   [saturationPolicy=abort]    - 队列饱和时提交任务的策略，默认为abort。
+ * - abort（终止并抛出异常）
+ * - discardOldest（剔除最早的任务以腾出空间执行新任务）。
+ * 
+ */
+
+/**
+ * 
+ * 关于选项的描述
+ * 
+ * 用于设值时的校验
+ * 
+ */
+const optionsSchema = {};
+
+optionsSchema.concurrency = {
+  type: 'number',
+  condition: v => v > 0,
+  default: 5
+};
+
+optionsSchema.timeout = {
+  type: 'number',
+  condition: v => v >= 0,
+  default: 15000
+};
+
+optionsSchema.retry = {
+  type: 'number',
+  condition: v => v >= 0,
+  default: 0
+}
+
+optionsSchema.retryPrior = {
+  type: 'boolean',
+  default: false
+}
+
+optionsSchema.newPrior = {
+  type: 'boolean',
+  default: false,
+  update: false
+}
+
+optionsSchema.catch = {
+  type: 'function',
+  default: null
+}
+
+optionsSchema.max = {
+  type: 'number',
+  condition: v => v > 0,
+  default: 2 << 15
+}
+
+optionsSchema.scheduleMode = {
+  type: 'string',
+  condition: v => v === constants.SCHEDULE_MODE_FREQUENCY || v === constants.SCHEDULE_MODE_IMMEDIATELY,
+  default: constants.SCHEDULE_MODE_IMMEDIATELY,
+  final: true
+}
+
+optionsSchema.countPerTimeScale = {
+  type: 'number',
+  condition: v => {
+    return v >= 1 || v === -1;
+  },
+  translate: v => ~~v,
+  default: 100,
+  fianl: true
+}
+
+optionsSchema.timeScale = {
+  type: 'number',
+  condition: v => v >= 1,
+  translate: v => ~~v,
+  default: 1
+}
+
+optionsSchema.taskMode = {
+  type: 'string',
+  condition: v => v === constants.TASK_MODE_DATA || v === constants.TASK_MODE_FUNCTION,
+  default: undefined
+}
+
+optionsSchema.handler = {
+  type: 'function',
+  default: () => Promise.resolve()
+}
+
+optionsSchema.saturationPolicy = {
+  type: 'string',
+  condition: v => v === constants.SATURATION_POLICY_ABORT || v === constants.SATURATION_POLICY_DISCARD_OLDEST,
+  default: constants.SATURATION_POLICY_ABORT
+}
+
+/**
+ * @param {options} options 
+ * 
+ * @returns {options}
+ */
+function Options(options) {
+
+  let self = this;
+
+  // 初始化选项
+  for (let option in optionsSchema) {
+    let optionSchema = optionsSchema[option];
+    let optionValue = options && options[option];
+    let condition = optionSchema.condition ? optionSchema.condition(optionValue) : true;
+    let curOptionValue = utils.getOrDefault(optionValue, optionSchema.type, condition, optionSchema.default);
+    self[option] = optionSchema.translate ? optionSchema.translate(curOptionValue) : curOptionValue;
+  }
+
+  /**
+   * 更新配置
+   * @param {options} newOptions 
+   */
+  function update (newOptions) {
+    if (newOptions) {
+      let allowOptions = {};
+      for (let option in newOptions) {
+        if (optionsSchema[option] && !optionsSchema[option].final && newOptions[option] !== undefined) {
+          let optionSchema = optionsSchema[option];
+          let condition = optionSchema.condition ? optionSchema.condition(newOptions[option]) : true;
+          let curOptionValue = utils.getOrDefault(newOptions[option], optionSchema.type, condition, optionSchema.default);
+          allowOptions[option] = optionSchema.translate ? optionSchema.translate(curOptionValue) : curOptionValue;
+        }
+      }
+      Object.assign(self, allowOptions);
+    }
+  }
+
+  /**
+   * @function
+   */
+  this.update = update;
+
+}
+
+module.exports = Options;
+
+/***/ }),
+/* 146 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+const path = __webpack_require__(622);
+const which = __webpack_require__(439);
+const getPathKey = __webpack_require__(250);
+
+function resolveCommandAttempt(parsed, withoutPathExt) {
+    const env = parsed.options.env || process.env;
+    const cwd = process.cwd();
+    const hasCustomCwd = parsed.options.cwd != null;
+    // Worker threads do not have process.chdir()
+    const shouldSwitchCwd = hasCustomCwd && process.chdir !== undefined && !process.chdir.disabled;
+
+    // If a custom `cwd` was specified, we need to change the process cwd
+    // because `which` will do stat calls but does not support a custom cwd
+    if (shouldSwitchCwd) {
+        try {
+            process.chdir(parsed.options.cwd);
+        } catch (err) {
+            /* Empty */
+        }
+    }
+
+    let resolved;
+
+    try {
+        resolved = which.sync(parsed.command, {
+            path: env[getPathKey({ env })],
+            pathExt: withoutPathExt ? path.delimiter : undefined,
+        });
+    } catch (e) {
+        /* Empty */
+    } finally {
+        if (shouldSwitchCwd) {
+            process.chdir(cwd);
+        }
+    }
+
+    // If we successfully resolved, ensure that an absolute path is returned
+    // Note that when a custom `cwd` was used, we need to resolve to an absolute path based on it
+    if (resolved) {
+        resolved = path.resolve(hasCustomCwd ? parsed.options.cwd : '', resolved);
+    }
+
+    return resolved;
+}
+
+function resolveCommand(parsed) {
+    return resolveCommandAttempt(parsed) || resolveCommandAttempt(parsed, true);
+}
+
+module.exports = resolveCommand;
+
+
+/***/ }),
 /* 147 */,
 /* 148 */,
 /* 149 */,
@@ -8841,7 +9646,83 @@ module.exports = function generate_properties(it, $keyword, $ruleType) {
 /* 154 */,
 /* 155 */,
 /* 156 */,
-/* 157 */,
+/* 157 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+Object.defineProperty(exports,"__esModule",{value:true});exports.signalsByNumber=exports.signalsByName=void 0;var _os=__webpack_require__(87);
+
+var _signals=__webpack_require__(6);
+var _realtime=__webpack_require__(171);
+
+
+
+const getSignalsByName=function(){
+const signals=(0,_signals.getSignals)();
+return signals.reduce(getSignalByName,{});
+};
+
+const getSignalByName=function(
+signalByNameMemo,
+{name,number,description,supported,action,forced,standard})
+{
+return{
+...signalByNameMemo,
+[name]:{name,number,description,supported,action,forced,standard}};
+
+};
+
+const signalsByName=getSignalsByName();exports.signalsByName=signalsByName;
+
+
+
+
+const getSignalsByNumber=function(){
+const signals=(0,_signals.getSignals)();
+const length=_realtime.SIGRTMAX+1;
+const signalsA=Array.from({length},(value,number)=>
+getSignalByNumber(number,signals));
+
+return Object.assign({},...signalsA);
+};
+
+const getSignalByNumber=function(number,signals){
+const signal=findSignalByNumber(number,signals);
+
+if(signal===undefined){
+return{};
+}
+
+const{name,description,supported,action,forced,standard}=signal;
+return{
+[number]:{
+name,
+number,
+description,
+supported,
+action,
+forced,
+standard}};
+
+
+};
+
+
+
+const findSignalByNumber=function(number,signals){
+const signal=signals.find(({name})=>_os.constants.signals[name]===number);
+
+if(signal!==undefined){
+return signal;
+}
+
+return signals.find(signalA=>signalA.number===number);
+};
+
+const signalsByNumber=getSignalsByNumber();exports.signalsByNumber=signalsByNumber;
+//# sourceMappingURL=main.js.map
+
+/***/ }),
 /* 158 */,
 /* 159 */,
 /* 160 */,
@@ -8872,7 +9753,110 @@ module.exports = {"$id":"content.json#","$schema":"http://json-schema.org/draft-
 /***/ }),
 /* 167 */,
 /* 168 */,
-/* 169 */,
+/* 169 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const isStream = __webpack_require__(667);
+const getStream = __webpack_require__(187);
+const mergeStream = __webpack_require__(299);
+
+// `input` option
+const handleInput = (spawned, input) => {
+	// Checking for stdin is workaround for https://github.com/nodejs/node/issues/26852
+	// TODO: Remove `|| spawned.stdin === undefined` once we drop support for Node.js <=12.2.0
+	if (input === undefined || spawned.stdin === undefined) {
+		return;
+	}
+
+	if (isStream(input)) {
+		input.pipe(spawned.stdin);
+	} else {
+		spawned.stdin.end(input);
+	}
+};
+
+// `all` interleaves `stdout` and `stderr`
+const makeAllStream = (spawned, {all}) => {
+	if (!all || (!spawned.stdout && !spawned.stderr)) {
+		return;
+	}
+
+	const mixed = mergeStream();
+
+	if (spawned.stdout) {
+		mixed.add(spawned.stdout);
+	}
+
+	if (spawned.stderr) {
+		mixed.add(spawned.stderr);
+	}
+
+	return mixed;
+};
+
+// On failure, `result.stdout|stderr|all` should contain the currently buffered stream
+const getBufferedData = async (stream, streamPromise) => {
+	if (!stream) {
+		return;
+	}
+
+	stream.destroy();
+
+	try {
+		return await streamPromise;
+	} catch (error) {
+		return error.bufferedData;
+	}
+};
+
+const getStreamPromise = (stream, {encoding, buffer, maxBuffer}) => {
+	if (!stream || !buffer) {
+		return;
+	}
+
+	if (encoding) {
+		return getStream(stream, {encoding, maxBuffer});
+	}
+
+	return getStream.buffer(stream, {maxBuffer});
+};
+
+// Retrieve result of child process: exit code, signal, error, streams (stdout/stderr/all)
+const getSpawnedResult = async ({stdout, stderr, all}, {encoding, buffer, maxBuffer}, processDone) => {
+	const stdoutPromise = getStreamPromise(stdout, {encoding, buffer, maxBuffer});
+	const stderrPromise = getStreamPromise(stderr, {encoding, buffer, maxBuffer});
+	const allPromise = getStreamPromise(all, {encoding, buffer, maxBuffer: maxBuffer * 2});
+
+	try {
+		return await Promise.all([processDone, stdoutPromise, stderrPromise, allPromise]);
+	} catch (error) {
+		return Promise.all([
+			{error, signal: error.signal, timedOut: error.timedOut},
+			getBufferedData(stdout, stdoutPromise),
+			getBufferedData(stderr, stderrPromise),
+			getBufferedData(all, allPromise)
+		]);
+	}
+};
+
+const validateInputSync = ({input}) => {
+	if (isStream(input)) {
+		throw new TypeError('The `input` option cannot be a stream in sync mode');
+	}
+};
+
+module.exports = {
+	handleInput,
+	makeAllStream,
+	getSpawnedResult,
+	validateInputSync
+};
+
+
+
+/***/ }),
 /* 170 */
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -9024,7 +10008,31 @@ exports.rfc3986 = rfc3986
 exports.generateBase = generateBase
 
 /***/ }),
-/* 171 */,
+/* 171 */
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+Object.defineProperty(exports,"__esModule",{value:true});exports.SIGRTMAX=exports.getRealtimeSignals=void 0;
+const getRealtimeSignals=function(){
+const length=SIGRTMAX-SIGRTMIN+1;
+return Array.from({length},getRealtimeSignal);
+};exports.getRealtimeSignals=getRealtimeSignals;
+
+const getRealtimeSignal=function(value,index){
+return{
+name:`SIGRT${index+1}`,
+number:SIGRTMIN+index,
+action:"terminate",
+description:"Application-specific signal (realtime)",
+standard:"posix"};
+
+};
+
+const SIGRTMIN=34;
+const SIGRTMAX=64;exports.SIGRTMAX=SIGRTMAX;
+//# sourceMappingURL=realtime.js.map
+
+/***/ }),
 /* 172 */,
 /* 173 */
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
@@ -9091,6 +10099,7 @@ async function exec() {
         run = core.getInput('run');
         params = core.getInput('params');
     }
+    console.log("参数", process.argv);
     const pluginInfo = await enableEnv(run, !fromAction);
     try {
         await execPlugin(pluginInfo, params);
@@ -9198,7 +10207,175 @@ return Context;
 /***/ }),
 /* 178 */,
 /* 179 */,
-/* 180 */,
+/* 180 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+// Note: since nyc uses this module to output coverage, any lines
+// that are in the direct sync flow of nyc's outputCoverage are
+// ignored, since we can never get coverage for them.
+var assert = __webpack_require__(357)
+var signals = __webpack_require__(641)
+var isWin = /^win/i.test(process.platform)
+
+var EE = __webpack_require__(614)
+/* istanbul ignore if */
+if (typeof EE !== 'function') {
+  EE = EE.EventEmitter
+}
+
+var emitter
+if (process.__signal_exit_emitter__) {
+  emitter = process.__signal_exit_emitter__
+} else {
+  emitter = process.__signal_exit_emitter__ = new EE()
+  emitter.count = 0
+  emitter.emitted = {}
+}
+
+// Because this emitter is a global, we have to check to see if a
+// previous version of this library failed to enable infinite listeners.
+// I know what you're about to say.  But literally everything about
+// signal-exit is a compromise with evil.  Get used to it.
+if (!emitter.infinite) {
+  emitter.setMaxListeners(Infinity)
+  emitter.infinite = true
+}
+
+module.exports = function (cb, opts) {
+  assert.equal(typeof cb, 'function', 'a callback must be provided for exit handler')
+
+  if (loaded === false) {
+    load()
+  }
+
+  var ev = 'exit'
+  if (opts && opts.alwaysLast) {
+    ev = 'afterexit'
+  }
+
+  var remove = function () {
+    emitter.removeListener(ev, cb)
+    if (emitter.listeners('exit').length === 0 &&
+        emitter.listeners('afterexit').length === 0) {
+      unload()
+    }
+  }
+  emitter.on(ev, cb)
+
+  return remove
+}
+
+module.exports.unload = unload
+function unload () {
+  if (!loaded) {
+    return
+  }
+  loaded = false
+
+  signals.forEach(function (sig) {
+    try {
+      process.removeListener(sig, sigListeners[sig])
+    } catch (er) {}
+  })
+  process.emit = originalProcessEmit
+  process.reallyExit = originalProcessReallyExit
+  emitter.count -= 1
+}
+
+function emit (event, code, signal) {
+  if (emitter.emitted[event]) {
+    return
+  }
+  emitter.emitted[event] = true
+  emitter.emit(event, code, signal)
+}
+
+// { <signal>: <listener fn>, ... }
+var sigListeners = {}
+signals.forEach(function (sig) {
+  sigListeners[sig] = function listener () {
+    // If there are no other listeners, an exit is coming!
+    // Simplest way: remove us and then re-send the signal.
+    // We know that this will kill the process, so we can
+    // safely emit now.
+    var listeners = process.listeners(sig)
+    if (listeners.length === emitter.count) {
+      unload()
+      emit('exit', null, sig)
+      /* istanbul ignore next */
+      emit('afterexit', null, sig)
+      /* istanbul ignore next */
+      if (isWin && sig === 'SIGHUP') {
+        // "SIGHUP" throws an `ENOSYS` error on Windows,
+        // so use a supported signal instead
+        sig = 'SIGINT'
+      }
+      process.kill(process.pid, sig)
+    }
+  }
+})
+
+module.exports.signals = function () {
+  return signals
+}
+
+module.exports.load = load
+
+var loaded = false
+
+function load () {
+  if (loaded) {
+    return
+  }
+  loaded = true
+
+  // This is the number of onSignalExit's that are in play.
+  // It's important so that we can count the correct number of
+  // listeners on signals, and don't wait for the other one to
+  // handle it instead of us.
+  emitter.count += 1
+
+  signals = signals.filter(function (sig) {
+    try {
+      process.on(sig, sigListeners[sig])
+      return true
+    } catch (er) {
+      return false
+    }
+  })
+
+  process.emit = processEmit
+  process.reallyExit = processReallyExit
+}
+
+var originalProcessReallyExit = process.reallyExit
+function processReallyExit (code) {
+  process.exitCode = code || 0
+  emit('exit', process.exitCode, null)
+  /* istanbul ignore next */
+  emit('afterexit', process.exitCode, null)
+  /* istanbul ignore next */
+  originalProcessReallyExit.call(process, process.exitCode)
+}
+
+var originalProcessEmit = process.emit
+function processEmit (ev, arg) {
+  if (ev === 'exit') {
+    if (arg !== undefined) {
+      process.exitCode = arg
+    }
+    var ret = originalProcessEmit.apply(this, arguments)
+    emit('exit', process.exitCode, null)
+    /* istanbul ignore next */
+    emit('afterexit', process.exitCode, null)
+    return ret
+  } else {
+    return originalProcessEmit.apply(this, arguments)
+  }
+}
+
+
+/***/ }),
 /* 181 */,
 /* 182 */,
 /* 183 */,
@@ -9386,7 +10563,73 @@ exports.Tunnel = Tunnel
 
 /***/ }),
 /* 186 */,
-/* 187 */,
+/* 187 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const {constants: BufferConstants} = __webpack_require__(407);
+const pump = __webpack_require__(70);
+const bufferStream = __webpack_require__(116);
+
+class MaxBufferError extends Error {
+	constructor() {
+		super('maxBuffer exceeded');
+		this.name = 'MaxBufferError';
+	}
+}
+
+async function getStream(inputStream, options) {
+	if (!inputStream) {
+		return Promise.reject(new Error('Expected a stream'));
+	}
+
+	options = {
+		maxBuffer: Infinity,
+		...options
+	};
+
+	const {maxBuffer} = options;
+
+	let stream;
+	await new Promise((resolve, reject) => {
+		const rejectPromise = error => {
+			// Don't retrieve an oversized buffer.
+			if (error && stream.getBufferedLength() <= BufferConstants.MAX_LENGTH) {
+				error.bufferedData = stream.getBufferedValue();
+			}
+
+			reject(error);
+		};
+
+		stream = pump(inputStream, bufferStream(options), error => {
+			if (error) {
+				rejectPromise(error);
+				return;
+			}
+
+			resolve();
+		});
+
+		stream.on('data', () => {
+			if (stream.getBufferedLength() > maxBuffer) {
+				rejectPromise(new MaxBufferError());
+			}
+		});
+	});
+
+	return stream.getBufferedValue();
+}
+
+module.exports = getStream;
+// TODO: Remove this for the next major release
+module.exports.default = getStream;
+module.exports.buffer = (stream, options) => getStream(stream, {...options, encoding: 'buffer'});
+module.exports.array = (stream, options) => getStream(stream, {...options, array: true});
+module.exports.MaxBufferError = MaxBufferError;
+
+
+/***/ }),
 /* 188 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -11675,7 +12918,7 @@ module.exports = function generate_enum(it, $keyword, $ruleType) {
 
 
 
-var common = __webpack_require__(23);
+var common = __webpack_require__(398);
 
 
 function Mark(name, buffer, position, line, column) {
@@ -12906,7 +14149,29 @@ module.exports = {
 
 /***/ }),
 /* 249 */,
-/* 250 */,
+/* 250 */
+/***/ (function(module) {
+
+"use strict";
+
+
+const pathKey = (options = {}) => {
+	const environment = options.env || process.env;
+	const platform = options.platform || process.platform;
+
+	if (platform !== 'win32') {
+		return 'PATH';
+	}
+
+	return Object.keys(environment).reverse().find(key => key.toUpperCase() === 'PATH') || 'Path';
+};
+
+module.exports = pathKey;
+// TODO: Remove this for the next major release
+module.exports.default = pathKey;
+
+
+/***/ }),
 /* 251 */
 /***/ (function(module) {
 
@@ -12918,39 +14183,282 @@ module.exports = freeGlobal;
 
 /***/ }),
 /* 252 */
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ (function(__unusedmodule, exports) {
 
 "use strict";
+Object.defineProperty(exports,"__esModule",{value:true});exports.SIGNALS=void 0;
 
+const SIGNALS=[
+{
+name:"SIGHUP",
+number:1,
+action:"terminate",
+description:"Terminal closed",
+standard:"posix"},
 
-var Type = __webpack_require__(616);
+{
+name:"SIGINT",
+number:2,
+action:"terminate",
+description:"User interruption with CTRL-C",
+standard:"ansi"},
 
-var _hasOwnProperty = Object.prototype.hasOwnProperty;
+{
+name:"SIGQUIT",
+number:3,
+action:"core",
+description:"User interruption with CTRL-\\",
+standard:"posix"},
 
-function resolveYamlSet(data) {
-  if (data === null) return true;
+{
+name:"SIGILL",
+number:4,
+action:"core",
+description:"Invalid machine instruction",
+standard:"ansi"},
 
-  var key, object = data;
+{
+name:"SIGTRAP",
+number:5,
+action:"core",
+description:"Debugger breakpoint",
+standard:"posix"},
 
-  for (key in object) {
-    if (_hasOwnProperty.call(object, key)) {
-      if (object[key] !== null) return false;
-    }
-  }
+{
+name:"SIGABRT",
+number:6,
+action:"core",
+description:"Aborted",
+standard:"ansi"},
 
-  return true;
-}
+{
+name:"SIGIOT",
+number:6,
+action:"core",
+description:"Aborted",
+standard:"bsd"},
 
-function constructYamlSet(data) {
-  return data !== null ? data : {};
-}
+{
+name:"SIGBUS",
+number:7,
+action:"core",
+description:
+"Bus error due to misaligned, non-existing address or paging error",
+standard:"bsd"},
 
-module.exports = new Type('tag:yaml.org,2002:set', {
-  kind: 'mapping',
-  resolve: resolveYamlSet,
-  construct: constructYamlSet
-});
+{
+name:"SIGEMT",
+number:7,
+action:"terminate",
+description:"Command should be emulated but is not implemented",
+standard:"other"},
 
+{
+name:"SIGFPE",
+number:8,
+action:"core",
+description:"Floating point arithmetic error",
+standard:"ansi"},
+
+{
+name:"SIGKILL",
+number:9,
+action:"terminate",
+description:"Forced termination",
+standard:"posix",
+forced:true},
+
+{
+name:"SIGUSR1",
+number:10,
+action:"terminate",
+description:"Application-specific signal",
+standard:"posix"},
+
+{
+name:"SIGSEGV",
+number:11,
+action:"core",
+description:"Segmentation fault",
+standard:"ansi"},
+
+{
+name:"SIGUSR2",
+number:12,
+action:"terminate",
+description:"Application-specific signal",
+standard:"posix"},
+
+{
+name:"SIGPIPE",
+number:13,
+action:"terminate",
+description:"Broken pipe or socket",
+standard:"posix"},
+
+{
+name:"SIGALRM",
+number:14,
+action:"terminate",
+description:"Timeout or timer",
+standard:"posix"},
+
+{
+name:"SIGTERM",
+number:15,
+action:"terminate",
+description:"Termination",
+standard:"ansi"},
+
+{
+name:"SIGSTKFLT",
+number:16,
+action:"terminate",
+description:"Stack is empty or overflowed",
+standard:"other"},
+
+{
+name:"SIGCHLD",
+number:17,
+action:"ignore",
+description:"Child process terminated, paused or unpaused",
+standard:"posix"},
+
+{
+name:"SIGCLD",
+number:17,
+action:"ignore",
+description:"Child process terminated, paused or unpaused",
+standard:"other"},
+
+{
+name:"SIGCONT",
+number:18,
+action:"unpause",
+description:"Unpaused",
+standard:"posix",
+forced:true},
+
+{
+name:"SIGSTOP",
+number:19,
+action:"pause",
+description:"Paused",
+standard:"posix",
+forced:true},
+
+{
+name:"SIGTSTP",
+number:20,
+action:"pause",
+description:"Paused using CTRL-Z or \"suspend\"",
+standard:"posix"},
+
+{
+name:"SIGTTIN",
+number:21,
+action:"pause",
+description:"Background process cannot read terminal input",
+standard:"posix"},
+
+{
+name:"SIGBREAK",
+number:21,
+action:"terminate",
+description:"User interruption with CTRL-BREAK",
+standard:"other"},
+
+{
+name:"SIGTTOU",
+number:22,
+action:"pause",
+description:"Background process cannot write to terminal output",
+standard:"posix"},
+
+{
+name:"SIGURG",
+number:23,
+action:"ignore",
+description:"Socket received out-of-band data",
+standard:"bsd"},
+
+{
+name:"SIGXCPU",
+number:24,
+action:"core",
+description:"Process timed out",
+standard:"bsd"},
+
+{
+name:"SIGXFSZ",
+number:25,
+action:"core",
+description:"File too big",
+standard:"bsd"},
+
+{
+name:"SIGVTALRM",
+number:26,
+action:"terminate",
+description:"Timeout or timer",
+standard:"bsd"},
+
+{
+name:"SIGPROF",
+number:27,
+action:"terminate",
+description:"Timeout or timer",
+standard:"bsd"},
+
+{
+name:"SIGWINCH",
+number:28,
+action:"ignore",
+description:"Terminal window size changed",
+standard:"bsd"},
+
+{
+name:"SIGIO",
+number:29,
+action:"terminate",
+description:"I/O is available",
+standard:"other"},
+
+{
+name:"SIGPOLL",
+number:29,
+action:"terminate",
+description:"Watched event",
+standard:"other"},
+
+{
+name:"SIGINFO",
+number:29,
+action:"ignore",
+description:"Request for process information",
+standard:"other"},
+
+{
+name:"SIGPWR",
+number:30,
+action:"terminate",
+description:"Device running out of power",
+standard:"systemv"},
+
+{
+name:"SIGSYS",
+number:31,
+action:"core",
+description:"Invalid system call",
+standard:"other"},
+
+{
+name:"SIGUNUSED",
+number:31,
+action:"terminate",
+description:"Invalid system call",
+standard:"other"}];exports.SIGNALS=SIGNALS;
+//# sourceMappingURL=core.js.map
 
 /***/ }),
 /* 253 */,
@@ -15067,7 +16575,7 @@ DelayedStream.prototype._checkIfMaxDataSizeExceeded = function() {
 
 /*eslint-disable max-len,no-use-before-define*/
 
-var common              = __webpack_require__(23);
+var common              = __webpack_require__(398);
 var YAMLException       = __webpack_require__(515);
 var Mark                = __webpack_require__(238);
 var DEFAULT_SAFE_SCHEMA = __webpack_require__(658);
@@ -16807,7 +18315,52 @@ module.exports = {
 
 /***/ }),
 /* 295 */,
-/* 296 */,
+/* 296 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+const cp = __webpack_require__(129);
+const parse = __webpack_require__(706);
+const enoent = __webpack_require__(354);
+
+function spawn(command, args, options) {
+    // Parse the arguments
+    const parsed = parse(command, args, options);
+
+    // Spawn the child process
+    const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
+
+    // Hook into child process "exit" event to emit an error if the command
+    // does not exists, see: https://github.com/IndigoUnited/node-cross-spawn/issues/16
+    enoent.hookChildProcess(spawned, parsed);
+
+    return spawned;
+}
+
+function spawnSync(command, args, options) {
+    // Parse the arguments
+    const parsed = parse(command, args, options);
+
+    // Spawn the child process
+    const result = cp.spawnSync(parsed.command, parsed.args, parsed.options);
+
+    // Analyze if the command does not exist, see: https://github.com/IndigoUnited/node-cross-spawn/issues/16
+    result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
+
+    return result;
+}
+
+module.exports = spawn;
+module.exports.spawn = spawn;
+module.exports.sync = spawnSync;
+
+module.exports._parse = parse;
+module.exports._enoent = enoent;
+
+
+/***/ }),
 /* 297 */
 /***/ (function(module) {
 
@@ -16897,7 +18450,54 @@ module.exports = function (requireCache, callback, callbackForModulesToKeep, mod
 
 /***/ }),
 /* 298 */,
-/* 299 */,
+/* 299 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+const { PassThrough } = __webpack_require__(413);
+
+module.exports = function (/*streams...*/) {
+  var sources = []
+  var output  = new PassThrough({objectMode: true})
+
+  output.setMaxListeners(0)
+
+  output.add = add
+  output.isEmpty = isEmpty
+
+  output.on('unpipe', remove)
+
+  Array.prototype.slice.call(arguments).forEach(add)
+
+  return output
+
+  function add (source) {
+    if (Array.isArray(source)) {
+      source.forEach(add)
+      return this
+    }
+
+    sources.push(source);
+    source.once('end', remove.bind(null, source))
+    source.once('error', output.emit.bind(output, 'error'))
+    source.pipe(output, {end: false})
+    return this
+  }
+
+  function isEmpty () {
+    return sources.length == 0;
+  }
+
+  function remove (source) {
+    sources = sources.filter(function (it) { return it !== source })
+    if (!sources.length && output.readable) { output.end() }
+  }
+}
+
+
+/***/ }),
 /* 300 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -21450,8 +23050,43 @@ module.exports = {
 
 
 /***/ }),
-/* 336 */,
-/* 337 */,
+/* 336 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+
+const Bobolink = __webpack_require__(693);
+
+/**
+ * @module
+ * @type { import("./lib/bobolink").bobolink }
+ */
+module.exports = Bobolink;
+
+
+/***/ }),
+/* 337 */
+/***/ (function(module) {
+
+"use strict";
+
+
+module.exports = input => {
+	const LF = typeof input === 'string' ? '\n' : '\n'.charCodeAt();
+	const CR = typeof input === 'string' ? '\r' : '\r'.charCodeAt();
+
+	if (input[input.length - 1] === LF) {
+		input = input.slice(0, input.length - 1);
+	}
+
+	if (input[input.length - 1] === CR) {
+		input = input.slice(0, input.length - 1);
+	}
+
+	return input;
+};
+
+
+/***/ }),
 /* 338 */,
 /* 339 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -22962,7 +24597,72 @@ Fingerprint._oldVersionDetect = function (obj) {
 
 /***/ }),
 /* 353 */,
-/* 354 */,
+/* 354 */
+/***/ (function(module) {
+
+"use strict";
+
+
+const isWin = process.platform === 'win32';
+
+function notFoundError(original, syscall) {
+    return Object.assign(new Error(`${syscall} ${original.command} ENOENT`), {
+        code: 'ENOENT',
+        errno: 'ENOENT',
+        syscall: `${syscall} ${original.command}`,
+        path: original.command,
+        spawnargs: original.args,
+    });
+}
+
+function hookChildProcess(cp, parsed) {
+    if (!isWin) {
+        return;
+    }
+
+    const originalEmit = cp.emit;
+
+    cp.emit = function (name, arg1) {
+        // If emitting "exit" event and exit code is 1, we need to check if
+        // the command exists and emit an "error" instead
+        // See https://github.com/IndigoUnited/node-cross-spawn/issues/16
+        if (name === 'exit') {
+            const err = verifyENOENT(arg1, parsed, 'spawn');
+
+            if (err) {
+                return originalEmit.call(cp, 'error', err);
+            }
+        }
+
+        return originalEmit.apply(cp, arguments); // eslint-disable-line prefer-rest-params
+    };
+}
+
+function verifyENOENT(status, parsed) {
+    if (isWin && status === 1 && !parsed.file) {
+        return notFoundError(parsed.original, 'spawn');
+    }
+
+    return null;
+}
+
+function verifyENOENTSync(status, parsed) {
+    if (isWin && status === 1 && !parsed.file) {
+        return notFoundError(parsed.original, 'spawnSync');
+    }
+
+    return null;
+}
+
+module.exports = {
+    hookChildProcess,
+    verifyENOENT,
+    verifyENOENTSync,
+    notFoundError,
+};
+
+
+/***/ }),
 /* 355 */,
 /* 356 */,
 /* 357 */
@@ -24421,12 +26121,139 @@ module.exports = function generate_allOf(it, $keyword, $ruleType) {
 /***/ }),
 /* 396 */,
 /* 397 */,
-/* 398 */,
+/* 398 */
+/***/ (function(module) {
+
+"use strict";
+
+
+
+function isNothing(subject) {
+  return (typeof subject === 'undefined') || (subject === null);
+}
+
+
+function isObject(subject) {
+  return (typeof subject === 'object') && (subject !== null);
+}
+
+
+function toArray(sequence) {
+  if (Array.isArray(sequence)) return sequence;
+  else if (isNothing(sequence)) return [];
+
+  return [ sequence ];
+}
+
+
+function extend(target, source) {
+  var index, length, key, sourceKeys;
+
+  if (source) {
+    sourceKeys = Object.keys(source);
+
+    for (index = 0, length = sourceKeys.length; index < length; index += 1) {
+      key = sourceKeys[index];
+      target[key] = source[key];
+    }
+  }
+
+  return target;
+}
+
+
+function repeat(string, count) {
+  var result = '', cycle;
+
+  for (cycle = 0; cycle < count; cycle += 1) {
+    result += string;
+  }
+
+  return result;
+}
+
+
+function isNegativeZero(number) {
+  return (number === 0) && (Number.NEGATIVE_INFINITY === 1 / number);
+}
+
+
+module.exports.isNothing      = isNothing;
+module.exports.isObject       = isObject;
+module.exports.toArray        = toArray;
+module.exports.repeat         = repeat;
+module.exports.isNegativeZero = isNegativeZero;
+module.exports.extend         = extend;
+
+
+/***/ }),
 /* 399 */,
 /* 400 */,
 /* 401 */,
 /* 402 */,
-/* 403 */,
+/* 403 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+var fs = __webpack_require__(747)
+var core
+if (process.platform === 'win32' || global.TESTING_WINDOWS) {
+  core = __webpack_require__(682)
+} else {
+  core = __webpack_require__(746)
+}
+
+module.exports = isexe
+isexe.sync = sync
+
+function isexe (path, options, cb) {
+  if (typeof options === 'function') {
+    cb = options
+    options = {}
+  }
+
+  if (!cb) {
+    if (typeof Promise !== 'function') {
+      throw new TypeError('callback not provided')
+    }
+
+    return new Promise(function (resolve, reject) {
+      isexe(path, options || {}, function (er, is) {
+        if (er) {
+          reject(er)
+        } else {
+          resolve(is)
+        }
+      })
+    })
+  }
+
+  core(path, options || {}, function (er, is) {
+    // ignore EACCES because that just means we aren't allowed to run it
+    if (er) {
+      if (er.code === 'EACCES' || options && options.ignoreErrors) {
+        er = null
+        is = false
+      }
+    }
+    cb(er, is)
+  })
+}
+
+function sync (path, options) {
+  // my kingdom for a filtered catch
+  try {
+    return core.sync(path, options || {})
+  } catch (er) {
+    if (options && options.ignoreErrors || er.code === 'EACCES') {
+      return false
+    } else {
+      throw er
+    }
+  }
+}
+
+
+/***/ }),
 /* 404 */,
 /* 405 */
 /***/ (function(module) {
@@ -24876,7 +26703,51 @@ function regex(str) {
 
 /***/ }),
 /* 419 */,
-/* 420 */,
+/* 420 */
+/***/ (function(module) {
+
+"use strict";
+
+const SPACES_REGEXP = / +/g;
+
+const joinCommand = (file, args = []) => {
+	if (!Array.isArray(args)) {
+		return file;
+	}
+
+	return [file, ...args].join(' ');
+};
+
+// Allow spaces to be escaped by a backslash if not meant as a delimiter
+const handleEscaping = (tokens, token, index) => {
+	if (index === 0) {
+		return [token];
+	}
+
+	const previousToken = tokens[tokens.length - 1];
+
+	if (previousToken.endsWith('\\')) {
+		return [...tokens.slice(0, -1), `${previousToken.slice(0, -1)} ${token}`];
+	}
+
+	return [...tokens, token];
+};
+
+// Handle `execa.command()`
+const parseCommand = command => {
+	return command
+		.trim()
+		.split(SPACES_REGEXP)
+		.reduce(handleEscaping, []);
+};
+
+module.exports = {
+	joinCommand,
+	parseCommand
+};
+
+
+/***/ }),
 /* 421 */
 /***/ (function(module) {
 
@@ -25043,7 +26914,137 @@ module.exports = new Type('tag:yaml.org,2002:js/regexp', {
 /***/ }),
 /* 437 */,
 /* 438 */,
-/* 439 */,
+/* 439 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+const isWindows = process.platform === 'win32' ||
+    process.env.OSTYPE === 'cygwin' ||
+    process.env.OSTYPE === 'msys'
+
+const path = __webpack_require__(622)
+const COLON = isWindows ? ';' : ':'
+const isexe = __webpack_require__(403)
+
+const getNotFoundError = (cmd) =>
+  Object.assign(new Error(`not found: ${cmd}`), { code: 'ENOENT' })
+
+const getPathInfo = (cmd, opt) => {
+  const colon = opt.colon || COLON
+
+  // If it has a slash, then we don't bother searching the pathenv.
+  // just check the file itself, and that's it.
+  const pathEnv = cmd.match(/\//) || isWindows && cmd.match(/\\/) ? ['']
+    : (
+      [
+        // windows always checks the cwd first
+        ...(isWindows ? [process.cwd()] : []),
+        ...(opt.path || process.env.PATH ||
+          /* istanbul ignore next: very unusual */ '').split(colon),
+      ]
+    )
+  const pathExtExe = isWindows
+    ? opt.pathExt || process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM'
+    : ''
+  const pathExt = isWindows ? pathExtExe.split(colon) : ['']
+
+  if (isWindows) {
+    if (cmd.indexOf('.') !== -1 && pathExt[0] !== '')
+      pathExt.unshift('')
+  }
+
+  return {
+    pathEnv,
+    pathExt,
+    pathExtExe,
+  }
+}
+
+const which = (cmd, opt, cb) => {
+  if (typeof opt === 'function') {
+    cb = opt
+    opt = {}
+  }
+  if (!opt)
+    opt = {}
+
+  const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt)
+  const found = []
+
+  const step = i => new Promise((resolve, reject) => {
+    if (i === pathEnv.length)
+      return opt.all && found.length ? resolve(found)
+        : reject(getNotFoundError(cmd))
+
+    const ppRaw = pathEnv[i]
+    const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw
+
+    const pCmd = path.join(pathPart, cmd)
+    const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd
+      : pCmd
+
+    resolve(subStep(p, i, 0))
+  })
+
+  const subStep = (p, i, ii) => new Promise((resolve, reject) => {
+    if (ii === pathExt.length)
+      return resolve(step(i + 1))
+    const ext = pathExt[ii]
+    isexe(p + ext, { pathExt: pathExtExe }, (er, is) => {
+      if (!er && is) {
+        if (opt.all)
+          found.push(p + ext)
+        else
+          return resolve(p + ext)
+      }
+      return resolve(subStep(p, i, ii + 1))
+    })
+  })
+
+  return cb ? step(0).then(res => cb(null, res), cb) : step(0)
+}
+
+const whichSync = (cmd, opt) => {
+  opt = opt || {}
+
+  const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt)
+  const found = []
+
+  for (let i = 0; i < pathEnv.length; i ++) {
+    const ppRaw = pathEnv[i]
+    const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw
+
+    const pCmd = path.join(pathPart, cmd)
+    const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd
+      : pCmd
+
+    for (let j = 0; j < pathExt.length; j ++) {
+      const cur = p + pathExt[j]
+      try {
+        const is = isexe.sync(cur, { pathExt: pathExtExe })
+        if (is) {
+          if (opt.all)
+            found.push(cur)
+          else
+            return cur
+        }
+      } catch (ex) {}
+    }
+  }
+
+  if (opt.all && found.length)
+    return found
+
+  if (opt.nothrow)
+    return null
+
+  throw getNotFoundError(cmd)
+}
+
+module.exports = which
+which.sync = whichSync
+
+
+/***/ }),
 /* 440 */,
 /* 441 */,
 /* 442 */,
@@ -26609,7 +28610,65 @@ function populateMaps (extensions, types) {
 
 /***/ }),
 /* 500 */,
-/* 501 */,
+/* 501 */
+/***/ (function(module) {
+
+"use strict";
+
+const aliases = ['stdin', 'stdout', 'stderr'];
+
+const hasAlias = opts => aliases.some(alias => opts[alias] !== undefined);
+
+const normalizeStdio = opts => {
+	if (!opts) {
+		return;
+	}
+
+	const {stdio} = opts;
+
+	if (stdio === undefined) {
+		return aliases.map(alias => opts[alias]);
+	}
+
+	if (hasAlias(opts)) {
+		throw new Error(`It's not possible to provide \`stdio\` in combination with one of ${aliases.map(alias => `\`${alias}\``).join(', ')}`);
+	}
+
+	if (typeof stdio === 'string') {
+		return stdio;
+	}
+
+	if (!Array.isArray(stdio)) {
+		throw new TypeError(`Expected \`stdio\` to be of type \`string\` or \`Array\`, got \`${typeof stdio}\``);
+	}
+
+	const length = Math.max(stdio.length, aliases.length);
+	return Array.from({length}, (value, index) => stdio[index]);
+};
+
+module.exports = normalizeStdio;
+
+// `ipc` is pushed unless it is already present
+module.exports.node = opts => {
+	const stdio = normalizeStdio(opts);
+
+	if (stdio === 'ipc') {
+		return 'ipc';
+	}
+
+	if (stdio === undefined || typeof stdio === 'string') {
+		return [stdio, stdio, stdio, 'ipc'];
+	}
+
+	if (stdio.includes('ipc')) {
+		return stdio;
+	}
+
+	return [...stdio, 'ipc'];
+};
+
+
+/***/ }),
 /* 502 */,
 /* 503 */,
 /* 504 */
@@ -27552,15 +29611,16 @@ const path_1 = __importDefault(__webpack_require__(622));
 const plugin_1 = __webpack_require__(244);
 const yaml_1 = __webpack_require__(898);
 class PluginInfo {
-    constructor(pluginRootPath, plugin, ver, protocolFileName) {
+    constructor(pluginRootPath, plugin, pluginFullName, ver, protocolFileName) {
         this.pluginRootPath = pluginRootPath;
         this.pluginName = plugin;
+        this.pluginFullName = pluginFullName;
         this.ver = ver;
-        this.pluginPath = path_1.default.join(this.pluginRootPath, `${this.pluginName}@${this.ver}`);
+        this.pluginPath = path_1.default.join(this.pluginRootPath, `${this.pluginFullName}@${this.ver}`);
         this.protocolFile = path_1.default.join(this.pluginPath, protocolFileName);
     }
     getPluginRealPath() {
-        return path_1.default.join(this.pluginRootPath, `${this.pluginName}@${this.checkoutTag}`);
+        return path_1.default.join(this.pluginRootPath, `${this.pluginFullName}@${this.checkoutTag}`);
     }
     async getProtocol() {
         if (!this.protocol) {
@@ -28345,22 +30405,57 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const fs_1 = __importDefault(__webpack_require__(747));
 const util_1 = __importDefault(__webpack_require__(669));
+const path_1 = __importDefault(__webpack_require__(622));
+const bobolink_1 = __importDefault(__webpack_require__(336));
 exports.default = new class {
     constructor() {
+        this.bobolink = new bobolink_1.default({
+            concurrency: 5,
+            timeout: 0,
+            handler: (cb) => {
+                return cb();
+            }
+        });
         this.constants = fs_1.default.constants;
         this.access = util_1.default.promisify(fs_1.default.access);
         this.mkdir = util_1.default.promisify(fs_1.default.mkdir);
         this.writeFile = util_1.default.promisify(fs_1.default.writeFile);
         this.symlink = util_1.default.promisify(fs_1.default.symlink);
         this.unlink = util_1.default.promisify(fs_1.default.unlink);
+        this.rmdir = util_1.default.promisify(fs_1.default.rmdir);
+        this.lstat = util_1.default.promisify(fs_1.default.lstat);
+        this.readdir = util_1.default.promisify(fs_1.default.readdir);
     }
     async link(source, target) {
         try {
-            await this.unlink(target);
+            const stats = await this.lstat(target);
+            if (stats.isFile() || stats.isSymbolicLink()) {
+                await this.unlink(target);
+            }
+            else if (stats.isDirectory()) {
+                await this.deleteDir(target);
+            }
         }
         catch (e) {
         }
         return this.symlink(source, target);
+    }
+    async deleteDir(dirPath) {
+        const files = await this.readdir(dirPath);
+        const awaitPs = [];
+        for (let file of files) {
+            file = path_1.default.join(dirPath, file);
+            const stats = await this.lstat(file);
+            if (stats.isDirectory()) {
+                await this.deleteDir(file);
+            }
+            const res = this.bobolink.push(() => {
+                return this.unlink(file);
+            });
+            awaitPs.push(res);
+        }
+        await Promise.all(awaitPs);
+        return this.rmdir(dirPath);
     }
 };
 //# sourceMappingURL=index.js.map
@@ -28802,7 +30897,42 @@ module.exports = toComparators
 
 
 /***/ }),
-/* 564 */,
+/* 564 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var Type = __webpack_require__(616);
+
+var _hasOwnProperty = Object.prototype.hasOwnProperty;
+
+function resolveYamlSet(data) {
+  if (data === null) return true;
+
+  var key, object = data;
+
+  for (key in object) {
+    if (_hasOwnProperty.call(object, key)) {
+      if (object[key] !== null) return false;
+    }
+  }
+
+  return true;
+}
+
+function constructYamlSet(data) {
+  return data !== null ? data : {};
+}
+
+module.exports = new Type('tag:yaml.org,2002:set', {
+  kind: 'mapping',
+  resolve: resolveYamlSet,
+  construct: constructYamlSet
+});
+
+
+/***/ }),
 /* 565 */,
 /* 566 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -30135,7 +32265,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Command = void 0;
 const base_1 = __webpack_require__(960);
 const array_1 = __webpack_require__(744);
-const child_process_1 = __webpack_require__(129);
+const execa_1 = __importDefault(__webpack_require__(96));
 const path_1 = __importDefault(__webpack_require__(622));
 const valRegexp = new RegExp('\\${var:.*?}', 'ig');
 function getVal(symbol) {
@@ -30187,7 +32317,7 @@ class Command {
             if (args && args.length > 0) {
                 command = `${command} ${args.join(' ')}`;
             }
-            child_process_1.execSync(command, {
+            execa_1.default.commandSync(command, {
                 stdio: 'inherit',
                 env: process.env,
             });
@@ -30558,7 +32688,54 @@ function terminator(callback)
 /* 600 */,
 /* 601 */,
 /* 602 */,
-/* 603 */,
+/* 603 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+var wrappy = __webpack_require__(935)
+module.exports = wrappy(once)
+module.exports.strict = wrappy(onceStrict)
+
+once.proto = once(function () {
+  Object.defineProperty(Function.prototype, 'once', {
+    value: function () {
+      return once(this)
+    },
+    configurable: true
+  })
+
+  Object.defineProperty(Function.prototype, 'onceStrict', {
+    value: function () {
+      return onceStrict(this)
+    },
+    configurable: true
+  })
+})
+
+function once (fn) {
+  var f = function () {
+    if (f.called) return f.value
+    f.called = true
+    return f.value = fn.apply(this, arguments)
+  }
+  f.called = false
+  return f
+}
+
+function onceStrict (fn) {
+  var f = function () {
+    if (f.called)
+      throw new Error(f.onceError)
+    f.called = true
+    return f.value = fn.apply(this, arguments)
+  }
+  var name = fn.name || 'Function wrapped with `once`'
+  f.onceError = name + " shouldn't be called more than once"
+  f.called = false
+  return f
+}
+
+
+/***/ }),
 /* 604 */,
 /* 605 */
 /***/ (function(module) {
@@ -31494,7 +33671,65 @@ module.exports = require("net");
 /* 638 */,
 /* 639 */,
 /* 640 */,
-/* 641 */,
+/* 641 */
+/***/ (function(module) {
+
+// This is not the set of all possible signals.
+//
+// It IS, however, the set of all signals that trigger
+// an exit on either Linux or BSD systems.  Linux is a
+// superset of the signal names supported on BSD, and
+// the unknown signals just fail to register, so we can
+// catch that easily enough.
+//
+// Don't bother with SIGKILL.  It's uncatchable, which
+// means that we can't fire any callbacks anyway.
+//
+// If a user does happen to register a handler on a non-
+// fatal signal like SIGWINCH or something, and then
+// exit, it'll end up firing `process.emit('exit')`, so
+// the handler will be fired anyway.
+//
+// SIGBUS, SIGFPE, SIGSEGV and SIGILL, when not raised
+// artificially, inherently leave the process in a
+// state from which it is not safe to try and enter JS
+// listeners.
+module.exports = [
+  'SIGABRT',
+  'SIGALRM',
+  'SIGHUP',
+  'SIGINT',
+  'SIGTERM'
+]
+
+if (process.platform !== 'win32') {
+  module.exports.push(
+    'SIGVTALRM',
+    'SIGXCPU',
+    'SIGXFSZ',
+    'SIGUSR2',
+    'SIGTRAP',
+    'SIGSYS',
+    'SIGQUIT',
+    'SIGIOT'
+    // should detect profiler and enable/disable accordingly.
+    // see #21
+    // 'SIGPROF'
+  )
+}
+
+if (process.platform === 'linux') {
+  module.exports.push(
+    'SIGIO',
+    'SIGPOLL',
+    'SIGPWR',
+    'SIGSTKFLT',
+    'SIGUNUSED'
+  )
+}
+
+
+/***/ }),
 /* 642 */
 /***/ (function(module, exports) {
 
@@ -31539,7 +33774,125 @@ module.exports = {"$id":"entry.json#","$schema":"http://json-schema.org/draft-06
 /* 646 */,
 /* 647 */,
 /* 648 */,
-/* 649 */,
+/* 649 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const os = __webpack_require__(87);
+const onExit = __webpack_require__(180);
+
+const DEFAULT_FORCE_KILL_TIMEOUT = 1000 * 5;
+
+// Monkey-patches `childProcess.kill()` to add `forceKillAfterTimeout` behavior
+const spawnedKill = (kill, signal = 'SIGTERM', options = {}) => {
+	const killResult = kill(signal);
+	setKillTimeout(kill, signal, options, killResult);
+	return killResult;
+};
+
+const setKillTimeout = (kill, signal, options, killResult) => {
+	if (!shouldForceKill(signal, options, killResult)) {
+		return;
+	}
+
+	const timeout = getForceKillAfterTimeout(options);
+	const t = setTimeout(() => {
+		kill('SIGKILL');
+	}, timeout);
+
+	// Guarded because there's no `.unref()` when `execa` is used in the renderer
+	// process in Electron. This cannot be tested since we don't run tests in
+	// Electron.
+	// istanbul ignore else
+	if (t.unref) {
+		t.unref();
+	}
+};
+
+const shouldForceKill = (signal, {forceKillAfterTimeout}, killResult) => {
+	return isSigterm(signal) && forceKillAfterTimeout !== false && killResult;
+};
+
+const isSigterm = signal => {
+	return signal === os.constants.signals.SIGTERM ||
+		(typeof signal === 'string' && signal.toUpperCase() === 'SIGTERM');
+};
+
+const getForceKillAfterTimeout = ({forceKillAfterTimeout = true}) => {
+	if (forceKillAfterTimeout === true) {
+		return DEFAULT_FORCE_KILL_TIMEOUT;
+	}
+
+	if (!Number.isFinite(forceKillAfterTimeout) || forceKillAfterTimeout < 0) {
+		throw new TypeError(`Expected the \`forceKillAfterTimeout\` option to be a non-negative integer, got \`${forceKillAfterTimeout}\` (${typeof forceKillAfterTimeout})`);
+	}
+
+	return forceKillAfterTimeout;
+};
+
+// `childProcess.cancel()`
+const spawnedCancel = (spawned, context) => {
+	const killResult = spawned.kill();
+
+	if (killResult) {
+		context.isCanceled = true;
+	}
+};
+
+const timeoutKill = (spawned, signal, reject) => {
+	spawned.kill(signal);
+	reject(Object.assign(new Error('Timed out'), {timedOut: true, signal}));
+};
+
+// `timeout` option handling
+const setupTimeout = (spawned, {timeout, killSignal = 'SIGTERM'}, spawnedPromise) => {
+	if (timeout === 0 || timeout === undefined) {
+		return spawnedPromise;
+	}
+
+	if (!Number.isFinite(timeout) || timeout < 0) {
+		throw new TypeError(`Expected the \`timeout\` option to be a non-negative integer, got \`${timeout}\` (${typeof timeout})`);
+	}
+
+	let timeoutId;
+	const timeoutPromise = new Promise((resolve, reject) => {
+		timeoutId = setTimeout(() => {
+			timeoutKill(spawned, killSignal, reject);
+		}, timeout);
+	});
+
+	const safeSpawnedPromise = spawnedPromise.finally(() => {
+		clearTimeout(timeoutId);
+	});
+
+	return Promise.race([timeoutPromise, safeSpawnedPromise]);
+};
+
+// `cleanup` option handling
+const setExitHandler = async (spawned, {cleanup, detached}, timedPromise) => {
+	if (!cleanup || detached) {
+		return timedPromise;
+	}
+
+	const removeExitHandler = onExit(() => {
+		spawned.kill();
+	});
+
+	return timedPromise.finally(() => {
+		removeExitHandler();
+	});
+};
+
+module.exports = {
+	spawnedKill,
+	spawnedCancel,
+	setupTimeout,
+	setExitHandler
+};
+
+
+/***/ }),
 /* 650 */,
 /* 651 */,
 /* 652 */
@@ -31751,13 +34104,13 @@ module.exports = new Schema({
   ],
   implicit: [
     __webpack_require__(976),
-    __webpack_require__(667)
+    __webpack_require__(701)
   ],
   explicit: [
     __webpack_require__(778),
     __webpack_require__(864),
     __webpack_require__(608),
-    __webpack_require__(252)
+    __webpack_require__(564)
   ]
 });
 
@@ -31983,21 +34336,38 @@ module.exports = function generate_const(it, $keyword, $ruleType) {
 /***/ }),
 /* 666 */,
 /* 667 */
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ (function(module) {
 
 "use strict";
 
 
-var Type = __webpack_require__(616);
+const isStream = stream =>
+	stream !== null &&
+	typeof stream === 'object' &&
+	typeof stream.pipe === 'function';
 
-function resolveYamlMerge(data) {
-  return data === '<<' || data === null;
-}
+isStream.writable = stream =>
+	isStream(stream) &&
+	stream.writable !== false &&
+	typeof stream._write === 'function' &&
+	typeof stream._writableState === 'object';
 
-module.exports = new Type('tag:yaml.org,2002:merge', {
-  kind: 'scalar',
-  resolve: resolveYamlMerge
-});
+isStream.readable = stream =>
+	isStream(stream) &&
+	stream.readable !== false &&
+	typeof stream._read === 'function' &&
+	typeof stream._readableState === 'object';
+
+isStream.duplex = stream =>
+	isStream.writable(stream) &&
+	isStream.readable(stream);
+
+isStream.transform = stream =>
+	isStream.duplex(stream) &&
+	typeof stream._transform === 'function' &&
+	typeof stream._transformState === 'object';
+
+module.exports = isStream;
 
 
 /***/ }),
@@ -32094,14 +34464,69 @@ module.exports = schedule;
 
 
 /***/ }),
-/* 675 */,
+/* 675 */
+/***/ (function(module) {
+
+"use strict";
+
+module.exports = /^#!(.*)/;
+
+
+/***/ }),
 /* 676 */,
 /* 677 */,
 /* 678 */,
 /* 679 */,
 /* 680 */,
 /* 681 */,
-/* 682 */,
+/* 682 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = isexe
+isexe.sync = sync
+
+var fs = __webpack_require__(747)
+
+function checkPathExt (path, options) {
+  var pathext = options.pathExt !== undefined ?
+    options.pathExt : process.env.PATHEXT
+
+  if (!pathext) {
+    return true
+  }
+
+  pathext = pathext.split(';')
+  if (pathext.indexOf('') !== -1) {
+    return true
+  }
+  for (var i = 0; i < pathext.length; i++) {
+    var p = pathext[i].toLowerCase()
+    if (p && path.substr(-p.length).toLowerCase() === p) {
+      return true
+    }
+  }
+  return false
+}
+
+function checkStat (stat, path, options) {
+  if (!stat.isSymbolicLink() && !stat.isFile()) {
+    return false
+  }
+  return checkPathExt(path, options)
+}
+
+function isexe (path, options, cb) {
+  fs.stat(path, function (er, stat) {
+    cb(er, er ? false : checkStat(stat, path, options))
+  })
+}
+
+function sync (path, options) {
+  return checkStat(fs.statSync(path), path, options)
+}
+
+
+/***/ }),
 /* 683 */,
 /* 684 */
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
@@ -32292,7 +34717,407 @@ module.exports = new Schema({
 
 
 /***/ }),
-/* 693 */,
+/* 693 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+const constants = __webpack_require__(121);
+const Options = __webpack_require__(145);
+const utils = __webpack_require__(992);
+
+
+/**
+ * 创建一个执行队列
+ * @param { import("./options").options } options 
+ * @class bobolink
+ */
+function Bobolink(options) {
+
+  let self = this;
+
+  // 生成配置
+  let queueOptions = new Options(options);
+
+  let queueTasks = [];
+
+  this.runningTasksCount = 0;
+
+  let taskTag = {};
+
+  let frequencyController;
+
+  /**
+   * 
+   * 调度模式的行为描述
+   * 
+   * putThenRun: 表明任务提交是否立即执行
+   * replenish: 表明任务执行完成是否补充执行
+   * init: 对应模式的初始化函数
+   * 
+   */
+  let schedulingModes = {};
+
+  // 按频率调度
+  schedulingModes[constants.SCHEDULE_MODE_FREQUENCY] = {
+    putThenRun: false,
+    replenish: false,
+    init: () => {
+      // 求公约数
+      let gcd = utils.getGCD(queueOptions.timeScale * 1000, queueOptions.countPerTimeScale);
+      // 得到以毫秒为单位的一个调度频率
+      let interval = queueOptions.timeScale * 1000 / gcd;
+      // 得到每个调度频率内需要调度的任务数
+      let taskNumber = queueOptions.countPerTimeScale / gcd;
+      // 每个调度频率调度期望的任务数
+      frequencyController = setInterval(() => {
+        // 剩余可并发的任务数
+        let rest = queueOptions.concurrency - self.runningTasksCount;
+        if (rest > 0) {
+          runTask(Math.min(rest, queueOptions.countPerTimeScale === -1 ? queueTasks.length : taskNumber));
+        }
+      }, queueOptions.countPerTimeScale === -1 ? queueOptions.timeScale * 1000 : interval);
+    }
+  };
+
+  // 及时调度
+  schedulingModes[constants.SCHEDULE_MODE_IMMEDIATELY] = {
+    putThenRun: true,
+    replenish: true
+  };
+
+  initSchedulingMode();
+
+  /**
+   * @param { import("./options").options } newOptions 
+   */
+  this.setOptions = function(newOptions) {
+    return queueOptions.update(newOptions);
+  };
+
+  /**
+   * 获取当前队列中的任务数
+   */
+  this.queueTaskSize = 0;
+
+  /**
+   * 获取当前队列的配置
+   */
+  this.options = null;
+
+  function initSchedulingMode() {
+    let mode = schedulingModes[queueOptions.scheduleMode];
+    mode.init && mode.init();
+  }
+
+  Object.defineProperty(this, 'queueTaskSize', {
+    get: () => {
+      return queueTasks.length;
+    }
+  });
+
+  Object.defineProperty(this, 'options', {
+    get: () => {
+      return queueOptions;
+    }
+  });
+
+  function putTask(task, prior) {
+    if (queueOptions.newPrior || prior) {
+      queueTasks.unshift(task);
+    } else {
+      queueTasks.push(task);
+    }
+  }
+
+  // 移除若干个旧任务
+  function discardOldest(len) {
+    let discardLen = Math.min(len, queueTasks.length);
+    // 如果是新任务优先的策略，则队尾为旧任务
+    if (queueOptions.newPrior) {
+      queueTasks.length = queueTasks.length - discardLen;
+    } else {
+      // 否则队头为新任务
+      let oldestTasks = queueTasks.splice(0, discardLen);
+      oldestTasks.forEach(task => {
+        if (task.tag) {
+          taskTag[task.tag].remainingCount--;
+          // 将任务标识为取消
+          taskTag[task.tag].results[task.index] = getRes(constants.DISCARD, undefined, Date.now() - task.putTime, 0, 0);
+          if (taskTag[task.tag].remainingCount === 0) {
+            resolveTaskTag(task);
+          }
+        }
+      });
+    }
+  }
+
+  /**
+   * 销毁实例
+   */
+  this.destory = function() {
+    // 移除定时器
+    if (frequencyController) {
+      clearInterval(frequencyController);
+    }
+    // 清理未执行任务
+    discardOldest(queueTasks.length);
+  }
+
+  function resolveTaskTag(task) {
+    let results = taskTag[task.tag].results;
+    let runTime = Date.now() - taskTag[task.tag].startTime;
+    let waitingTime = taskTag[task.tag].startTime - taskTag[task.tag].putTime;
+    delete taskTag[task.tag];
+    task.resolve(getRes(undefined, results, waitingTime, runTime));
+  }
+
+  /**
+   * @typedef {object}  ts    - 任务
+   * @property {any}    err   - 错误信息，err === undefined时说明没有任务成功
+   * @property {any}    res   - 任务的返回数据
+   * @property {number} waitingTime   - 任务在队列中等待的时间（ms）
+   * @property {number} runTime       - 任务的执行时间
+   * @property {number} retry         - 任务的重试次数 
+   */
+
+  /**
+   * 提交一个或一组任务
+   * 
+   * @param {any|any[]} datas           - 提交数据或可执行函数，可函数要求执行后返回一个Promise。
+   * @param {boolean}   [prior=false]   - 此任务是否优先执行
+   * @returns {Promise<ts>}
+   */
+  this.put = this.push = function(datas, prior) {
+    if (Array.isArray(datas) && datas.length == 0) {
+      return Promise.reject(constants.EMPTY_ELEMENTS);
+    }
+    // 饱和状态
+    if (queueOptions.max !== -1 && (queueTasks.length + (Array.isArray(datas) ? datas.length : 1) > queueOptions.max)) {
+      // 终止时，直接抛出异常
+      if (queueOptions.saturationPolicy === constants.SATURATION_POLICY_ABORT) {
+        return Promise.reject(constants.EXCEEDED);
+      } else if (queueOptions.saturationPolicy === constants.SATURATION_POLICY_DISCARD_OLDEST) {
+        let len = Array.isArray(datas) ? datas.length : 1;
+        // 如果一次放入的任务数大于队列的最大数，直接剔除掉头部任务（一组任务，应该是队头的任务时间最早）
+        if (len > queueOptions.max) {
+          len = queueOptions.max;
+          datas.splice(0, len);
+        }
+        discardOldest(len);
+      }
+    }
+    // 没有设置过任务模式的话，从第一次的任务中推断
+    if (!queueOptions.taskMode) {
+      let firstTask = Array.isArray(datas) ? datas[0] : datas;
+      initTaskMode(firstTask);
+    }
+    return new Promise((resolve, reject) => {
+      // 检验任务是否符合当前任务模式
+      if (Array.isArray(datas)) {
+        let tag = utils.genId();
+        // 筛选任务，函数模式时，应剔除所有非函数的任务
+        let validData = datas.filter(task => {
+          if (queueOptions.taskMode === constants.TASK_MODE_FUNCTION) {
+            return task instanceof Function;
+          } else {
+            return !(task instanceof Function);
+          }
+        });
+        // 整组任务都是不符合期望的任务类型
+        if (validData.length === 0) {
+          return reject(constants.TASK_ERROR);
+        }
+        let putTime = Date.now();
+        taskTag[tag] = {
+          results: new Array(validData.length),
+          remainingCount: validData.length,
+          putTime
+        };
+        for (let i = 0, len = validData.length; i < len; i++) {
+          let index = prior ? (len - i - 1) : i;
+          let data = validData[index];
+          putTask({
+            resolve,
+            reject,
+            data,
+            tag,
+            index,
+            retry: 0,
+            putTime
+          }, prior);
+        }
+      } else {
+        if (queueOptions.taskMode === constants.TASK_MODE_FUNCTION && !(datas instanceof Function)) {
+          return reject(constants.TASK_ERROR);
+        } else if (queueOptions.taskMode === constants.TASK_MODE_DATA && datas instanceof Function) {
+          return reject(constants.TASK_ERROR);
+        }
+        putTask({
+          resolve,
+          reject,
+          data: datas,
+          retry: 0,
+          putTime: Date.now()
+        }, prior);
+      }
+      if (schedulingModes[queueOptions.scheduleMode].putThenRun) {
+        let newTaskCount = queueOptions.concurrency - self.runningTasksCount;
+        if (newTaskCount < 1) {
+          return;
+        }
+        runTask(newTaskCount);
+      }
+    });
+    
+  }
+
+  function initTaskMode (firstTask) {
+    // 首次添加任务，如果是函数，则设置为函数模式，否则设置为数据模式
+    if (firstTask instanceof Function) {
+      queueOptions.update({
+        taskMode: constants.TASK_MODE_FUNCTION
+      });
+    } else {
+      queueOptions.update({
+        taskMode: constants.TASK_MODE_DATA
+      });
+    }
+  }
+
+  function get(count = 1) {
+    return queueTasks.splice(0, count);
+  }
+
+  function runTask(count) {
+    let newTasks = get(count);
+    newTasks.forEach(task => {
+      self.runningTasksCount++;
+      // 根据任务模式决定执行函数
+      let taskFunc = queueOptions.taskMode === constants.TASK_MODE_FUNCTION ? task.data() : queueOptions.handler(task.data);
+      let p = (queueOptions.timeout > 0 ? Promise.race([utils.delayPromise(queueOptions.timeout), taskFunc]) : taskFunc);
+      taskHandler(task, p);
+    });
+  }
+
+  function taskHandler(task, p) {
+    let startTime = Date.now();
+    // 组任务第一次执行时标记开始时间
+    task.tag && !(taskTag[task.tag].startTime) && (taskTag[task.tag].startTime = startTime);
+    p.then(res => {
+      self.runningTasksCount--;
+      return getRes(undefined, res, startTime - task.putTime, Date.now() - startTime, task.retry);
+    }).catch((err = constants.UNKNOWN_ERR) => {
+      if (queueOptions.catch) {
+        setTimeout(() => {
+          queueOptions.catch(err);
+        }, 0);
+      }
+      self.runningTasksCount--;
+      if (queueOptions.retry > task.retry) {
+        task.retry++;
+        if (queueOptions.retryPrior) {
+          queueTasks.unshift(task);
+        } else {
+          queueTasks.push(task);
+        }
+        return constants.RETRY_FLAG;
+      } else {
+        return getRes(err, null, startTime - task.putTime, Date.now() - startTime, task.retry);
+      }
+    }).then(res => {
+      // 是否主动补充任务
+      if (schedulingModes[queueOptions.scheduleMode].replenish) {
+        runTask(1);
+      }
+      if (res !== constants.RETRY_FLAG) {
+        if (task.tag) {
+          taskTag[task.tag].remainingCount--;
+          taskTag[task.tag].results[task.index] = res;
+          if (taskTag[task.tag].remainingCount === 0) {
+            resolveTaskTag(task);
+          }
+        } else {
+          task.resolve(res);
+        }
+      }
+    });
+  }
+
+  function getRes(err, res, waitingTime = 0, runTime = 0, retry = 0) {
+    return {
+      err,
+      res,
+      waitingTime,
+      runTime,
+      retry
+    }
+  }
+
+}
+
+/**
+ * 超时标识
+ */
+Bobolink.TIMEOUT_FLAG = constants.TIMEOUT_FLAG;
+
+/**
+ * 任务抛出异常，但没有具体错误信息时将得到此标识
+ */
+Bobolink.UNKNOWN_ERR = constants.UNKNOWN_ERR;
+
+/**
+ * 队列已满标识
+ */
+Bobolink.EXCEEDED = constants.EXCEEDED;
+
+/**
+ * 按频率调度模式
+ */
+Bobolink.SCHEDULE_MODE_FREQUENCY = constants.SCHEDULE_MODE_FREQUENCY;
+
+/**
+ * 立即调度模式
+ */
+Bobolink.SCHEDULE_MODE_IMMEDIATELY = constants.SCHEDULE_MODE_IMMEDIATELY;
+
+/**
+ * 饱和策略：终止
+ */
+Bobolink.SATURATION_POLICY_ABORT = constants.SATURATION_POLICY_ABORT;
+
+/**
+ * 饱和策略：移除最早任务
+ */
+Bobolink.SATURATION_POLICY_DISCARD_OLDEST = constants.SATURATION_POLICY_DISCARD_OLDEST;
+
+/**
+ * 任务模型，表明put进来的数据
+ */
+Bobolink.TASK_MODE_DATA = constants.TASK_MODE_DATA;
+
+/**
+ * 任务模型，表明put进来的是函数
+ */
+Bobolink.TASK_MODE_FUNCTION = constants.TASK_MODE_FUNCTION;
+
+/**
+ * 任务不支持，通常在往一个数据模型的队列放置函数或函数模型的队列中放置非函数时会得到此错误
+ */
+Bobolink.TASK_ERROR = constants.TASK_ERROR;
+
+/**
+ * 任务被取消（在饱和策略设置为丢弃最早任务时才会出现）
+ */
+Bobolink.DISCARD = constants.DISCARD;
+
+/**
+ * 提交了一个空数组时报错
+ */
+Bobolink.EMPTY_ELEMENTS = constants.EMPTY_ELEMENTS;
+
+
+module.exports = Bobolink;
+
+/***/ }),
 /* 694 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -32548,11 +35373,48 @@ function write(key, options) {
 
 
 /***/ }),
-/* 697 */,
+/* 697 */
+/***/ (function(module) {
+
+"use strict";
+
+
+const mimicFn = (to, from) => {
+	for (const prop of Reflect.ownKeys(from)) {
+		Object.defineProperty(to, prop, Object.getOwnPropertyDescriptor(from, prop));
+	}
+
+	return to;
+};
+
+module.exports = mimicFn;
+// TODO: Remove this for the next major release
+module.exports.default = mimicFn;
+
+
+/***/ }),
 /* 698 */,
 /* 699 */,
 /* 700 */,
-/* 701 */,
+/* 701 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+var Type = __webpack_require__(616);
+
+function resolveYamlMerge(data) {
+  return data === '<<' || data === null;
+}
+
+module.exports = new Type('tag:yaml.org,2002:merge', {
+  kind: 'scalar',
+  resolve: resolveYamlMerge
+});
+
+
+/***/ }),
 /* 702 */,
 /* 703 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -33108,7 +35970,104 @@ function noop() {}
 
 
 /***/ }),
-/* 706 */,
+/* 706 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+const path = __webpack_require__(622);
+const resolveCommand = __webpack_require__(146);
+const escape = __webpack_require__(940);
+const readShebang = __webpack_require__(797);
+
+const isWin = process.platform === 'win32';
+const isExecutableRegExp = /\.(?:com|exe)$/i;
+const isCmdShimRegExp = /node_modules[\\/].bin[\\/][^\\/]+\.cmd$/i;
+
+function detectShebang(parsed) {
+    parsed.file = resolveCommand(parsed);
+
+    const shebang = parsed.file && readShebang(parsed.file);
+
+    if (shebang) {
+        parsed.args.unshift(parsed.file);
+        parsed.command = shebang;
+
+        return resolveCommand(parsed);
+    }
+
+    return parsed.file;
+}
+
+function parseNonShell(parsed) {
+    if (!isWin) {
+        return parsed;
+    }
+
+    // Detect & add support for shebangs
+    const commandFile = detectShebang(parsed);
+
+    // We don't need a shell if the command filename is an executable
+    const needsShell = !isExecutableRegExp.test(commandFile);
+
+    // If a shell is required, use cmd.exe and take care of escaping everything correctly
+    // Note that `forceShell` is an hidden option used only in tests
+    if (parsed.options.forceShell || needsShell) {
+        // Need to double escape meta chars if the command is a cmd-shim located in `node_modules/.bin/`
+        // The cmd-shim simply calls execute the package bin file with NodeJS, proxying any argument
+        // Because the escape of metachars with ^ gets interpreted when the cmd.exe is first called,
+        // we need to double escape them
+        const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
+
+        // Normalize posix paths into OS compatible paths (e.g.: foo/bar -> foo\bar)
+        // This is necessary otherwise it will always fail with ENOENT in those cases
+        parsed.command = path.normalize(parsed.command);
+
+        // Escape command & arguments
+        parsed.command = escape.command(parsed.command);
+        parsed.args = parsed.args.map((arg) => escape.argument(arg, needsDoubleEscapeMetaChars));
+
+        const shellCommand = [parsed.command].concat(parsed.args).join(' ');
+
+        parsed.args = ['/d', '/s', '/c', `"${shellCommand}"`];
+        parsed.command = process.env.comspec || 'cmd.exe';
+        parsed.options.windowsVerbatimArguments = true; // Tell node's spawn that the arguments are already escaped
+    }
+
+    return parsed;
+}
+
+function parse(command, args, options) {
+    // Normalize arguments, similar to nodejs
+    if (args && !Array.isArray(args)) {
+        options = args;
+        args = null;
+    }
+
+    args = args ? args.slice(0) : []; // Clone array to avoid changing the original
+    options = Object.assign({}, options); // Clone object to avoid changing the original
+
+    // Build our parsed object
+    const parsed = {
+        command,
+        args,
+        options,
+        file: undefined,
+        original: {
+            command,
+            args,
+        },
+    };
+
+    // Delegate further parsing to shell or non-shell
+    return options.shell ? parsed : parseNonShell(parsed);
+}
+
+module.exports = parse;
+
+
+/***/ }),
 /* 707 */,
 /* 708 */
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
@@ -33164,19 +36123,24 @@ class Linker {
     }
     async linkToWin32(binPath, command, name) {
         const file = this.cmdFile(binPath, name || command);
-        await this.enableDir(binPath);
-        const template = this.cmdTemplate(command);
-        return this.writeExecFile(file, template);
+        try {
+            await fs_1.default.access(file);
+        }
+        catch (e) {
+            await this.enableDir(binPath);
+            const template = this.cmdTemplate(command);
+            return this.writeExecFile(file, template);
+        }
     }
     async linkToUnixLike(binPath, libPath, command, name) {
         await this.enableDir(binPath, libPath);
-        const file = this.shellFile(libPath, name || command);
-        const template = this.shellTemplate(command);
         const commandLink = path_1.default.join(binPath, name || command);
         try {
             await fs_1.default.access(commandLink, fs_1.default.constants.F_OK);
         }
         catch (e) {
+            const file = this.shellFile(libPath, name || command);
+            const template = this.shellTemplate(command);
             await this.writeExecFile(file, template);
             return this.link(file, commandLink);
         }
@@ -34389,7 +37353,7 @@ module.exports.firstLineError = firstLineError;
 
 /*eslint-disable no-use-before-define*/
 
-var common              = __webpack_require__(23);
+var common              = __webpack_require__(398);
 var YAMLException       = __webpack_require__(515);
 var DEFAULT_FULL_SCHEMA = __webpack_require__(279);
 var DEFAULT_SAFE_SCHEMA = __webpack_require__(658);
@@ -36960,7 +39924,53 @@ exports.toArray = toArray;
 
 /***/ }),
 /* 745 */,
-/* 746 */,
+/* 746 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = isexe
+isexe.sync = sync
+
+var fs = __webpack_require__(747)
+
+function isexe (path, options, cb) {
+  fs.stat(path, function (er, stat) {
+    cb(er, er ? false : checkStat(stat, options))
+  })
+}
+
+function sync (path, options) {
+  return checkStat(fs.statSync(path), options)
+}
+
+function checkStat (stat, options) {
+  return stat.isFile() && checkMode(stat, options)
+}
+
+function checkMode (stat, options) {
+  var mod = stat.mode
+  var uid = stat.uid
+  var gid = stat.gid
+
+  var myUid = options.uid !== undefined ?
+    options.uid : process.getuid && process.getuid()
+  var myGid = options.gid !== undefined ?
+    options.gid : process.getgid && process.getgid()
+
+  var u = parseInt('100', 8)
+  var g = parseInt('010', 8)
+  var o = parseInt('001', 8)
+  var ug = u | g
+
+  var ret = (mod & o) ||
+    (mod & g) && gid === myGid ||
+    (mod & u) && uid === myUid ||
+    (mod & ug) && myUid === 0
+
+  return ret
+}
+
+
+/***/ }),
 /* 747 */
 /***/ (function(module) {
 
@@ -38696,7 +41706,36 @@ module.exports = lt
 
 /***/ }),
 /* 796 */,
-/* 797 */,
+/* 797 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+const fs = __webpack_require__(747);
+const shebangCommand = __webpack_require__(8);
+
+function readShebang(command) {
+    // Read the first 150 bytes from the file
+    const size = 150;
+    const buffer = Buffer.alloc(size);
+
+    let fd;
+
+    try {
+        fd = fs.openSync(command, 'r');
+        fs.readSync(fd, buffer, 0, size, 0);
+        fs.closeSync(fd);
+    } catch (e) { /* Empty */ }
+
+    // Attempt to extract shebang (null is returned if not a shebang)
+    return shebangCommand(buffer.toString());
+}
+
+module.exports = readShebang;
+
+
+/***/ }),
 /* 798 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -39048,15 +42087,15 @@ const path_1 = __importDefault(__webpack_require__(622));
 const home = os_1.default.homedir();
 exports.default = {
     // 工作目录
-    workPath: path_1.default.join(home, 'fef'),
+    workPath: path_1.default.join(home, '.fef'),
     // 包下载目录
-    pluginRootDir: path_1.default.join(home, 'fef', 'pkg'),
+    pluginRootDir: path_1.default.join(home, '.fef', 'universal_modules'),
     // 协议文件名
     protocolFileName: 'plugin.yml',
     // 商店
     storeUrl: 'http://gui.oa.com/',
     // 调用依赖的指令 {cmd} {dep}@{ver} $@
-    execName: 'fef-action',
+    execName: 'fef',
     // 插件前缀
     pluginPrefix: 'feflow-plugin-',
     // 安装成功标志
@@ -40258,7 +43297,106 @@ module.exports = function generate__limitProperties(it, $keyword, $ruleType) {
 
 
 /***/ }),
-/* 832 */,
+/* 832 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+var once = __webpack_require__(603);
+
+var noop = function() {};
+
+var isRequest = function(stream) {
+	return stream.setHeader && typeof stream.abort === 'function';
+};
+
+var isChildProcess = function(stream) {
+	return stream.stdio && Array.isArray(stream.stdio) && stream.stdio.length === 3
+};
+
+var eos = function(stream, opts, callback) {
+	if (typeof opts === 'function') return eos(stream, null, opts);
+	if (!opts) opts = {};
+
+	callback = once(callback || noop);
+
+	var ws = stream._writableState;
+	var rs = stream._readableState;
+	var readable = opts.readable || (opts.readable !== false && stream.readable);
+	var writable = opts.writable || (opts.writable !== false && stream.writable);
+	var cancelled = false;
+
+	var onlegacyfinish = function() {
+		if (!stream.writable) onfinish();
+	};
+
+	var onfinish = function() {
+		writable = false;
+		if (!readable) callback.call(stream);
+	};
+
+	var onend = function() {
+		readable = false;
+		if (!writable) callback.call(stream);
+	};
+
+	var onexit = function(exitCode) {
+		callback.call(stream, exitCode ? new Error('exited with error code: ' + exitCode) : null);
+	};
+
+	var onerror = function(err) {
+		callback.call(stream, err);
+	};
+
+	var onclose = function() {
+		process.nextTick(onclosenexttick);
+	};
+
+	var onclosenexttick = function() {
+		if (cancelled) return;
+		if (readable && !(rs && (rs.ended && !rs.destroyed))) return callback.call(stream, new Error('premature close'));
+		if (writable && !(ws && (ws.ended && !ws.destroyed))) return callback.call(stream, new Error('premature close'));
+	};
+
+	var onrequest = function() {
+		stream.req.on('finish', onfinish);
+	};
+
+	if (isRequest(stream)) {
+		stream.on('complete', onfinish);
+		stream.on('abort', onclose);
+		if (stream.req) onrequest();
+		else stream.on('request', onrequest);
+	} else if (writable && !ws) { // legacy streams
+		stream.on('end', onlegacyfinish);
+		stream.on('close', onlegacyfinish);
+	}
+
+	if (isChildProcess(stream)) stream.on('exit', onexit);
+
+	stream.on('end', onend);
+	stream.on('finish', onfinish);
+	if (opts.error !== false) stream.on('error', onerror);
+	stream.on('close', onclose);
+
+	return function() {
+		cancelled = true;
+		stream.removeListener('complete', onfinish);
+		stream.removeListener('abort', onclose);
+		stream.removeListener('request', onrequest);
+		if (stream.req) stream.req.removeListener('finish', onfinish);
+		stream.removeListener('end', onlegacyfinish);
+		stream.removeListener('close', onlegacyfinish);
+		stream.removeListener('finish', onfinish);
+		stream.removeListener('exit', onexit);
+		stream.removeListener('end', onend);
+		stream.removeListener('error', onerror);
+		stream.removeListener('close', onclose);
+	};
+};
+
+module.exports = eos;
+
+
+/***/ }),
 /* 833 */,
 /* 834 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -41164,7 +44302,59 @@ Promise.prototype.asCallback = Promise.prototype.nodeify = function (nodeback,
 
 /***/ }),
 /* 851 */,
-/* 852 */,
+/* 852 */
+/***/ (function(module) {
+
+"use strict";
+
+
+const nativePromisePrototype = (async () => {})().constructor.prototype;
+const descriptors = ['then', 'catch', 'finally'].map(property => [
+	property,
+	Reflect.getOwnPropertyDescriptor(nativePromisePrototype, property)
+]);
+
+// The return value is a mixin of `childProcess` and `Promise`
+const mergePromise = (spawned, promise) => {
+	for (const [property, descriptor] of descriptors) {
+		// Starting the main `promise` is deferred to avoid consuming streams
+		const value = typeof promise === 'function' ?
+			(...args) => Reflect.apply(descriptor.value, promise(), args) :
+			descriptor.value.bind(promise);
+
+		Reflect.defineProperty(spawned, property, {...descriptor, value});
+	}
+
+	return spawned;
+};
+
+// Use promises instead of `child_process` events
+const getSpawnedPromise = spawned => {
+	return new Promise((resolve, reject) => {
+		spawned.on('exit', (exitCode, signal) => {
+			resolve({exitCode, signal});
+		});
+
+		spawned.on('error', error => {
+			reject(error);
+		});
+
+		if (spawned.stdin) {
+			spawned.stdin.on('error', error => {
+				reject(error);
+			});
+		}
+	});
+};
+
+module.exports = {
+	mergePromise,
+	getSpawnedPromise
+};
+
+
+
+/***/ }),
 /* 853 */,
 /* 854 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -43796,7 +46986,7 @@ module.exports = safer
 
 /*eslint-disable max-len*/
 
-var common        = __webpack_require__(23);
+var common        = __webpack_require__(398);
 var YAMLException = __webpack_require__(515);
 var Type          = __webpack_require__(616);
 
@@ -44216,7 +47406,45 @@ module.exports = new Type('tag:yaml.org,2002:str', {
 /* 932 */,
 /* 933 */,
 /* 934 */,
-/* 935 */,
+/* 935 */
+/***/ (function(module) {
+
+// Returns a wrapper function that returns a wrapped callback
+// The wrapper function should do some stuff, and return a
+// presumably different callback function.
+// This makes sure that own properties are retained, so that
+// decorations and such are not lost along the way.
+module.exports = wrappy
+function wrappy (fn, cb) {
+  if (fn && cb) return wrappy(fn)(cb)
+
+  if (typeof fn !== 'function')
+    throw new TypeError('need wrapper function')
+
+  Object.keys(fn).forEach(function (k) {
+    wrapper[k] = fn[k]
+  })
+
+  return wrapper
+
+  function wrapper() {
+    var args = new Array(arguments.length)
+    for (var i = 0; i < args.length; i++) {
+      args[i] = arguments[i]
+    }
+    var ret = fn.apply(this, args)
+    var cb = args[args.length-1]
+    if (typeof ret === 'function' && ret !== cb) {
+      Object.keys(cb).forEach(function (k) {
+        ret[k] = cb[k]
+      })
+    }
+    return ret
+  }
+}
+
+
+/***/ }),
 /* 936 */,
 /* 937 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -44338,7 +47566,58 @@ module.exports = {
 /***/ }),
 /* 938 */,
 /* 939 */,
-/* 940 */,
+/* 940 */
+/***/ (function(module) {
+
+"use strict";
+
+
+// See http://www.robvanderwoude.com/escapechars.php
+const metaCharsRegExp = /([()\][%!^"`<>&|;, *?])/g;
+
+function escapeCommand(arg) {
+    // Escape meta chars
+    arg = arg.replace(metaCharsRegExp, '^$1');
+
+    return arg;
+}
+
+function escapeArgument(arg, doubleEscapeMetaChars) {
+    // Convert to string
+    arg = `${arg}`;
+
+    // Algorithm below is based on https://qntm.org/cmd
+
+    // Sequence of backslashes followed by a double quote:
+    // double up all the backslashes and escape the double quote
+    arg = arg.replace(/(\\*)"/g, '$1$1\\"');
+
+    // Sequence of backslashes followed by the end of the string
+    // (which will become a double quote later):
+    // double up all the backslashes
+    arg = arg.replace(/(\\*)$/, '$1$1');
+
+    // All other backslashes occur literally
+
+    // Quote the whole thing:
+    arg = `"${arg}"`;
+
+    // Escape meta chars
+    arg = arg.replace(metaCharsRegExp, '^$1');
+
+    // Double escape meta chars if necessary
+    if (doubleEscapeMetaChars) {
+        arg = arg.replace(metaCharsRegExp, '^$1');
+    }
+
+    return arg;
+}
+
+module.exports.command = escapeCommand;
+module.exports.argument = escapeArgument;
+
+
+/***/ }),
 /* 941 */,
 /* 942 */
 /***/ (function(__unusedmodule, exports) {
@@ -45735,7 +49014,60 @@ Object.defineProperty(exports, '__esModule', { value: true });
 
 /***/ }),
 /* 943 */,
-/* 944 */,
+/* 944 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const path = __webpack_require__(622);
+const pathKey = __webpack_require__(250);
+
+const npmRunPath = options => {
+	options = {
+		cwd: process.cwd(),
+		path: process.env[pathKey()],
+		execPath: process.execPath,
+		...options
+	};
+
+	let previous;
+	let cwdPath = path.resolve(options.cwd);
+	const result = [];
+
+	while (previous !== cwdPath) {
+		result.push(path.join(cwdPath, 'node_modules/.bin'));
+		previous = cwdPath;
+		cwdPath = path.resolve(cwdPath, '..');
+	}
+
+	// Ensure the running `node` binary is used
+	const execPathDir = path.resolve(options.cwd, options.execPath, '..');
+	result.push(execPathDir);
+
+	return result.concat(options.path).join(path.delimiter);
+};
+
+module.exports = npmRunPath;
+// TODO: Remove this for the next major release
+module.exports.default = npmRunPath;
+
+module.exports.env = options => {
+	options = {
+		env: process.env,
+		...options
+	};
+
+	const env = {...options.env};
+	const path = pathKey({env});
+
+	options.path = env[path];
+	env[path] = module.exports(options);
+
+	return env;
+};
+
+
+/***/ }),
 /* 945 */
 /***/ (function(module) {
 
@@ -47118,7 +50450,59 @@ module.exports = function (data, opts) {
 /* 989 */,
 /* 990 */,
 /* 991 */,
-/* 992 */,
+/* 992 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+const constants = __webpack_require__(121);
+
+let autoIncrement = 0;
+
+let instance = {};
+
+function getAndIncrement (digits = 8) {
+  let r = (new Array(digits).fill(0).join('') + autoIncrement).slice(-1 * digits);
+  if (autoIncrement >= (Math.pow(10, digits) - 1)) {
+    autoIncrement = 0;
+  } else {
+    autoIncrement++;
+  }
+  return r;
+}
+
+// 提取最大公约数
+instance.getGCD = function(a, b) {
+  if (b === 0) {
+    return a;
+  }
+  return instance.getGCD(b, a % b);
+}
+
+
+// 生成唯一id
+instance.genId = function (digits) {
+  return Date.now() + getAndIncrement(digits);
+}
+
+// 一定时间后失败
+instance.delayPromise = function (ms) {
+  return new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(constants.TIMEOUT_FLAG);
+    }, ms);
+  });
+}
+
+// 获取值或在检测不成立时返回默认值
+instance.getOrDefault = function (value, type, condition, defaultValue) {
+  if (typeof value === type && condition) {
+    return value;
+  }
+  return defaultValue;
+}
+
+module.exports = instance;
+
+/***/ }),
 /* 993 */,
 /* 994 */,
 /* 995 */
@@ -47127,7 +50511,7 @@ module.exports = function (data, opts) {
 "use strict";
 
 
-var common = __webpack_require__(23);
+var common = __webpack_require__(398);
 var Type   = __webpack_require__(616);
 
 var YAML_FLOAT_PATTERN = new RegExp(
@@ -47320,7 +50704,7 @@ class Git {
         if (!version_1.default.check(ver)) {
             return Promise.reject(`invalid version: ${pluginVer}`);
         }
-        const pluginInfo = new plugin_1.PluginInfo(config_1.default.pluginRootDir, plugin, ver, config_1.default.protocolFileName);
+        const pluginInfo = new plugin_1.PluginInfo(config_1.default.pluginRootDir, plugin, pluginFullName, ver, config_1.default.protocolFileName);
         try {
             // 完成标志存在则不需要下载
             const doneFile = path_1.default.join(pluginInfo.pluginPath, config_1.default.fefDoneFile);
@@ -47361,7 +50745,7 @@ class Git {
                 await this.clone(url, checkTag, pluginRealPath);
             }
             catch (e) {
-                return Promise.reject(e);
+                await fs_1.default.access(pluginRealPath);
             }
         }
         if (ver === 'latest') {

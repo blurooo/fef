@@ -54,9 +54,13 @@ export default class Linker {
 
   private async linkToWin32(binPath: string, command: string, name?: string) {
     const file = this.cmdFile(binPath, name || command);
-    await this.enableDir(binPath);
-    const template = this.cmdTemplate(command);
-    return this.writeExecFile(file, template);
+    try {
+      await fs.access(file);
+    } catch (e) {
+      await this.enableDir(binPath);
+      const template = this.cmdTemplate(command);
+      return this.writeExecFile(file, template);
+    }
   }
 
   private async linkToUnixLike(
@@ -66,12 +70,12 @@ export default class Linker {
     name?: string,
   ) {
     await this.enableDir(binPath, libPath);
-    const file = this.shellFile(libPath, name || command);
-    const template = this.shellTemplate(command);
     const commandLink = path.join(binPath, name || command);
     try {
       await fs.access(commandLink, fs.constants.F_OK);
     } catch (e) {
+      const file = this.shellFile(libPath, name || command);
+      const template = this.shellTemplate(command);
       await this.writeExecFile(file, template);
       return this.link(file, commandLink);
     }

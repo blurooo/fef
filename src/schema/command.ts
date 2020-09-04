@@ -1,6 +1,7 @@
 import { arch, platformType } from './base';
 import { toArray } from '../utils/array';
 import { execSync } from 'child_process';
+import execa from 'execa';
 import path from 'path';
 
 const valRegexp = new RegExp('\\${var:.*?}', 'ig');
@@ -63,7 +64,7 @@ export class Command {
       if (args && args.length > 0) {
         command = `${command} ${args.join(' ')}`;
       }
-      execSync(command, {
+      execa.commandSync(command, {
         stdio: 'inherit',
         env: process.env,
       });

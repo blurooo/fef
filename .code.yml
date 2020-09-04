@@ -3,3 +3,4 @@ code-style:
   ts:
     exclusion-paths:
       - dist
+      - lib

@@ -38,6 +38,7 @@ async function exec() {
     run = core.getInput('run');
     params = core.getInput('params');
   }
+  console.log("参数", process.argv)
   const pluginInfo = await enableEnv(run, !fromAction);
   try {
     await execPlugin(pluginInfo, params);

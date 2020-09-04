@@ -5,6 +5,7 @@ import { parseYaml } from '../utils/yaml';
 export class PluginInfo {
   pluginRootPath: string;
   pluginPath: string;
+  pluginFullName: string;
   pluginName: string;
   checkoutTag: string | undefined;
   ver: string;
@@ -14,18 +15,20 @@ export class PluginInfo {
   constructor(
     pluginRootPath: string,
     plugin: string,
+    pluginFullName: string,
     ver: string,
     protocolFileName: string,
   ) {
     this.pluginRootPath = pluginRootPath;
     this.pluginName = plugin;
+    this.pluginFullName = pluginFullName;
     this.ver = ver;
-    this.pluginPath = path.join(this.pluginRootPath, `${this.pluginName}@${this.ver}`);
+    this.pluginPath = path.join(this.pluginRootPath, `${this.pluginFullName}@${this.ver}`);
     this.protocolFile = path.join(this.pluginPath, protocolFileName);
   }
 
   getPluginRealPath(): string {
-    return path.join(this.pluginRootPath, `${this.pluginName}@${this.checkoutTag}`);
+    return path.join(this.pluginRootPath, `${this.pluginFullName}@${this.checkoutTag}`);
   }
 
   async getProtocol(): Promise<Plugin> {

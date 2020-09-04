@@ -36,7 +36,7 @@ export class Git {
     if (!VersionStyle.check(ver)) {
       return Promise.reject(`invalid version: ${pluginVer}`);
     }
-    const pluginInfo = new PluginInfo(config.pluginRootDir, plugin, ver, config.protocolFileName);
+    const pluginInfo = new PluginInfo(config.pluginRootDir, plugin, pluginFullName, ver, config.protocolFileName);
     try {
       // 完成标志存在则不需要下载
       const doneFile = path.join(pluginInfo.pluginPath, config.fefDoneFile);
@@ -73,7 +73,7 @@ export class Git {
         this.silent || console.log(`download ${plugin}@${ver} from ${url}`);
         await this.clone(url, checkTag, pluginRealPath);
       } catch (e) {
-        return Promise.reject(e);
+        await fs.access(pluginRealPath);
       }
     }
     if (ver === 'latest') {
