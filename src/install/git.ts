@@ -13,6 +13,8 @@ const execAsync = util.promisify(exec);
 export class Git {
   private gitAccount: any;
 
+  private checkTask: any = {};
+
   private isSSH = false;
 
   private readonly silent: boolean;
@@ -21,7 +23,7 @@ export class Git {
     this.silent = silent;
   }
 
-  public async enablePlugin(pluginVer: string): Promise<PluginInfo> {
+  public async enablePlugin(pluginVer: string, dep?: boolean): Promise<PluginInfo> {
     let [plugin, ver] = pluginVer.split('@');
     let pluginFullName = plugin;
     if (!plugin.startsWith(config.pluginPrefix)) {
@@ -37,6 +39,11 @@ export class Git {
       return Promise.reject(`invalid version: ${pluginVer}`);
     }
     const pluginInfo = new PluginInfo(config.pluginRootDir, plugin, pluginFullName, ver, config.protocolFileName);
+    if (this.checkTask[pluginInfo.pluginPath]) {
+      return pluginInfo;
+    } else {
+      this.checkTask[pluginInfo.pluginPath] = 'init';
+    }
     try {
       // 完成标志存在则不需要下载
       const doneFile = path.join(pluginInfo.pluginPath, config.fefDoneFile);
@@ -44,10 +51,11 @@ export class Git {
       return pluginInfo;
     } catch (e) {
     }
-    const url = await this.getRepoInfo(pluginFullName);
+    let url = await this.getRepoInfo(pluginFullName);
     if (!url) {
       return Promise.reject(`unknown pkg: ${pluginFullName}`);
     }
+    url = await this.transformUrl(url);
     let checkTag = '';
     if (ver === 'latest') {
       const latestTag = await this.getTag(url);
@@ -67,19 +75,28 @@ export class Git {
     pluginInfo.checkoutTag = checkTag;
     const pluginRealPath = pluginInfo.getPluginRealPath();
     try {
-      await fs.access(pluginRealPath);
+      await fs.access(pluginRealPath, fs.constants.F_OK);
     } catch (e) {
       try {
         this.silent || console.log(`download ${plugin}@${ver} from ${url}`);
         await this.clone(url, checkTag, pluginRealPath);
       } catch (e) {
-        await fs.access(pluginRealPath);
+        this.checkTask[pluginInfo.pluginPath] = e;
       }
     }
     if (ver === 'latest') {
       await fs.link(pluginRealPath, pluginInfo.pluginPath);
     }
     await this.enableDeps(pluginInfo);
+    if (!dep) {
+      await Promise.all(Object.keys(this.checkTask).map(async (pluginPath: string) => {
+        try {
+          await fs.access(path.join(pluginPath, config.fefDoneFile), fs.constants.F_OK);
+        } catch (e) {
+          return Promise.reject(`check fail, ${pluginPath}: ${this.checkTask[pluginPath]}`);
+        }
+      }));
+    }
     return pluginInfo;
   }
 
@@ -88,7 +105,7 @@ export class Git {
     const binPath = path.join(pluginPath, '.bin');
     const libPath = path.join(pluginPath, '.lib');
     const protocol = await pluginInfo.getProtocol();
-    const tasks = protocol.dep.plugin.map(plugin => this.enablePlugin(plugin).then((depPluginInfo) => {
+    const tasks = protocol.dep.plugin.map(plugin => this.enablePlugin(plugin, true).then((depPluginInfo) => {
       const linker = new Linker(config.execName);
       const command = `${depPluginInfo.pluginName}@${depPluginInfo.ver}`;
       return linker.register(binPath, libPath, command, depPluginInfo.pluginName);
@@ -117,7 +134,6 @@ export class Git {
 
   private async getTag(repoUrl: string, version?: string) {
     const { stdout } = await execAsync(`git ls-remote --tags --refs ${repoUrl}`, {
-      timeout: 2000,
       windowsHide: true,
     });
 
@@ -147,7 +163,7 @@ export class Git {
     return satisfiedMaxVersion;
   }
 
-  private async clone(url: string, tag: string, pkgPath: string) {
+  private clone(url: string, tag: string, pkgPath: string) {
     return execAsync(`git clone -b ${tag} --depth 1 ${url} ${pkgPath}`, {
       windowsHide: true,
     });
