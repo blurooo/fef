@@ -98,7 +98,7 @@ export default class Linker {
   }
 
   private shellTemplate(command: string): string {
-    return `#!/bin/sh\n${this.startCommand} ${command} $@`;
+    return `#!/bin/sh\n${this.startCommand} ${command} "$@"`;
   }
 
   private cmdTemplate(command: string): string {

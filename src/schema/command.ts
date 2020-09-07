@@ -1,7 +1,7 @@
 import { arch, platformType } from './base';
 import { toArray } from '../utils/array';
-import { execSync } from 'child_process';
 import execa from 'execa';
+import { execSync } from 'child_process';
 import path from 'path';
 
 const valRegexp = new RegExp('\\${var:.*?}', 'ig');
@@ -64,7 +64,17 @@ export class Command {
       if (args && args.length > 0) {
         command = `${command} ${args.join(' ')}`;
       }
-      execa.commandSync(command, {
+      // todo 使用exec可以避开shell参数解析的问题
+      // 例如 lizard -x "node_modules/*"
+      // 使用execSync，会将node_modules/*解析成 node_modules/.bin node_modules/@lodash ...
+      // 需要改成 lizard -x "node_modules/\*"
+      // 但是execa则可以使用 lizard -x "node_modules/*"（不支持lizard -x "node_modules/\*"）
+      // 目前先兼容旧模式，等待feflow和actions/fef运行时对齐，再统一切换为execa
+      // execa.commandSync(command, {
+      //   stdio: 'inherit',
+      //   env: process.env,
+      // });
+      execSync(command, {
         stdio: 'inherit',
         env: process.env,
       });

@@ -19,5 +19,5 @@ export default {
   // 安装成功标志
   fefDoneFile: '.fef.done',
   // 过滤参数
-  filterParams: ['--disable-check'],
+  filterParams: ['--disable-check', '--slient'],
 };
