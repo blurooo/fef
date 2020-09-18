@@ -4,22 +4,50 @@ on:
   push:
     branches:
       - master
+      - develop
+
+env: 
+  CODE_SERVICE_NAME: demo22
+  CODE_PACKAGE: com.tencent.ep
+  CODE_LANGUAGE: java
+  PASSADMIN_APP: blurooochen_app
+  PASSADMIN_SERVER: blurooochen_server
+  PASSADMIN_ENV: blurooochen_test
+  GIT_GROUP: blurooochen
+  GIT_TOKEN: seoz9b0eNvn0gYFWWAYw
+  BK_PROJECT_ID: code-quality
+  BK_TEMPLATE_ID: de51b73181a04b27beff2cd89a168a7e
+  BK_TEMPLATE_VERSION: 50457
+  BK_TEMPLATE_NAME: 测试啊12
+
 
 jobs:
   build:
-    name: 测试action/fef
+    name: 一键生成
     runs-on: ubuntu-latest
     steps:
-      - name: hello
+      - name: 生成脚手架代码
         uses: blurooo/fef@master
         with:
-          # 使用feflow工具py-echo打印hello, world
-          run: 'py-echo'
-          params: 'hello, world'
-      - name: 代码规范检查
+          run: 'archetype-maven'
+          params: 'create --artifactId $CODE_SERVICE_NAME --cloneType ssh --groupId $GIT_GROUP --package $CODE_PACKAGE --version 1.0.0 --token $GIT_TOKEN'
+      - name: 创建123环境 + 服务并写入配置
         uses: blurooo/fef@master
         with:
-          # 使用feflow工具code-style扫描代码规范
-          run: 'code-style'
-          # 存在代码规范问题时中断流水线
-          failedWhenNonZeroExit: true
+          run: 'passadmin'
+          params: 'create --app $PASSADMIN_APP --envName $PASSADMIN_ENV --server $PASSADMIN_SERVER --lang $CODE_LANGUAGE --package $CODE_PACKAGE'
+      - name: 克隆流水线模板
+        uses: blurooo/fef@master
+        with:
+          run: 'bkm'
+          params: 'template create --pid $BK_PROJECT_ID --tid $BK_TEMPLATE_ID --version $BK_TEMPLATE_VERSION --name $BK_TEMPLATE_NAME --param repoName=$GIT_GROUP/$CODE_SERVICE_NAME --param serviceName=$CODE_SERVICE_NAME --param user=$USER_NAME --param code_path=http://git.code.oa.com/"$GIT_GROUP"/"$CODE_SERVICE_NAME".git --param app=$PASSADMIN_APP --param git_key=$GIT_TOKEN --param server=$PASSADMIN_SERVER --param language=$CODE_LANGUAGE --param env=$PASSADMIN_ENV_ID'
+      - name: 关联代码仓库到流水线
+        uses: blurooo/fef@master
+        with:
+          run: 'bkm'
+          params: 'repo create --pid $BK_PROJECT_ID --projectName $GIT_GROUP/$CODE_SERVICE_NAME --type codeGit --aliasName $GIT_GROUP/$CODE_SERVICE_NAME --authType OAUTH --url http://git.code.oa.com/"$GIT_GROUP"/"$CODE_SERVICE_NAME".git --userName $USER_NAME'
+      - name: 触发流水线构建
+        uses: blurooo/fef@master
+        with:
+          run: 'bkm'
+          params: 'pipeline start --projectId $BK_PROJECT_ID --pipelineId p-5d2cee4708014caf826581fb0b337489'

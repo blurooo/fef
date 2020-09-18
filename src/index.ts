@@ -4,21 +4,24 @@ import * as core from '@actions/core';
 import { Git } from './install/git';
 import Linker from './linker';
 import { PluginInfo } from './install/plugin';
+import { setOutput } from './utils/output';
 
-function enableCommand(workDir: string) {
+function enableCommand(workDir: string, command: string, ...params: string[]) {
   const [nodeCommand, fefEnterFile] = process.argv;
   const curBinPath = path.join(workDir, 'bin');
   const libBinPath = path.join(workDir, 'lib');
-  process.env.PATH = `${curBinPath}${path.delimiter}${process.env.PATH}`;
+  if (!process.env.PATH?.startsWith(curBinPath)) {
+    process.env.PATH = `${curBinPath}${path.delimiter}${process.env.PATH}`;
+  }
   const linker = new Linker(nodeCommand);
-  return linker.register(curBinPath, libBinPath, fefEnterFile, config.execName);
+  return linker.register(curBinPath, libBinPath, `${fefEnterFile} ${params.join(' ')}`, command);
 }
 
 async function enableEnv(plugin: string, silent: boolean): Promise<PluginInfo> {
   const git = new Git(silent);
   const [pluginInfo] = await Promise.all([
     git.enablePlugin(plugin),
-    enableCommand(config.workPath),
+    enableCommand(config.workPath, config.execName),
   ]);
   return pluginInfo;
 }
@@ -37,6 +40,9 @@ async function exec() {
   } else {
     run = core.getInput('run');
     params = core.getInput('params');
+  }
+  if (run === 'setOutput') {
+
   }
   const pluginInfo = await enableEnv(run, !fromAction);
   try {
@@ -62,3 +68,7 @@ async function execPlugin(pluginInfo: PluginInfo, params: string) {
 exec().catch((e) => {
   process.exit(e?.status || 1);
 });
+
+function handleSetOutput(params: string[]) {
+
+}
