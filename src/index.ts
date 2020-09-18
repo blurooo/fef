@@ -6,7 +6,7 @@ import Linker from './linker';
 import { PluginInfo } from './install/plugin';
 import { setOutput } from './utils/output';
 
-function enableCommand(workDir: string, command: string, ...params: string[]) {
+function enableCommand(workDir: string) {
   const [nodeCommand, fefEnterFile] = process.argv;
   const curBinPath = path.join(workDir, 'bin');
   const libBinPath = path.join(workDir, 'lib');
@@ -14,14 +14,17 @@ function enableCommand(workDir: string, command: string, ...params: string[]) {
     process.env.PATH = `${curBinPath}${path.delimiter}${process.env.PATH}`;
   }
   const linker = new Linker(nodeCommand);
-  return linker.register(curBinPath, libBinPath, `${fefEnterFile} ${params.join(' ')}`, command);
+  return Promise.all([
+    linker.register(curBinPath, libBinPath, fefEnterFile, config.execName),
+    linker.register(curBinPath, libBinPath, `${fefEnterFile} ${config.setOutputCommand}`, config.setOutputCommand)
+  ]);
 }
 
 async function enableEnv(plugin: string, silent: boolean): Promise<PluginInfo> {
   const git = new Git(silent);
   const [pluginInfo] = await Promise.all([
     git.enablePlugin(plugin),
-    enableCommand(config.workPath, config.execName),
+    enableCommand(config.workPath),
   ]);
   return pluginInfo;
 }
@@ -29,24 +32,24 @@ async function enableEnv(plugin: string, silent: boolean): Promise<PluginInfo> {
 async function exec() {
   let fromAction = true;
   let run;
-  let params;
+  let paramsStr;
   const argv = process.argv.slice(2);
   if (argv?.length > 0) {
     fromAction = false;
     [run] = argv;
-    params = argv.slice(1)
-      .filter(a => !config.filterParams.includes(a))
-      .join(' ');
+    const params = argv.slice(1)
+      .filter(a => !config.filterParams.includes(a));
+    paramsStr = params.join(' ');
+    if (run === config.setOutputCommand) {
+      return handleSetOutput(params);
+    }
   } else {
     run = core.getInput('run');
-    params = core.getInput('params');
-  }
-  if (run === 'setOutput') {
-
+    paramsStr = core.getInput('params');
   }
   const pluginInfo = await enableEnv(run, !fromAction);
   try {
-    await execPlugin(pluginInfo, params);
+    await execPlugin(pluginInfo, paramsStr);
     fromAction && core.setOutput('code', 0);
   } catch (err) {
     if (!fromAction) {
@@ -70,5 +73,11 @@ exec().catch((e) => {
 });
 
 function handleSetOutput(params: string[]) {
-
+  for (const param of params) {
+    const [key, value] = param.split('=');
+    if (!key || !value) {
+      continue;
+    }
+    setOutput(key, value);
+  }
 }

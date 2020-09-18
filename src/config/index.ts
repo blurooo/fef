@@ -14,6 +14,7 @@ export default {
   storeUrl: 'http://gui.oa.com/',
   // 调用依赖的指令 {cmd} {dep}@{ver} $@
   execName: 'fef',
+  setOutputCommand: 'setOutput',
   // 插件前缀
   pluginPrefix: 'feflow-plugin-',
   // 安装成功标志
