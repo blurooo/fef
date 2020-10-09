@@ -44,12 +44,14 @@ export class Git {
     } else {
       this.checkTask[pluginInfo.pluginPath] = 'init';
     }
-    try {
-      // 完成标志存在则不需要下载
-      const doneFile = path.join(pluginInfo.pluginPath, config.fefDoneFile);
-      await fs.access(doneFile, fs.constants.F_OK);
-      return pluginInfo;
-    } catch (e) {
+    if (ver === 'latest') {
+      try {
+        // 完成标志存在且非latest版本则不需要下载
+        const doneFile = path.join(pluginInfo.pluginPath, config.fefDoneFile);
+        await fs.access(doneFile, fs.constants.F_OK);
+        return pluginInfo;
+      } catch (e) {
+      }
     }
     let url = await this.getRepoInfo(pluginFullName);
     if (!url) {

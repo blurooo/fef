@@ -7,18 +7,19 @@ on:
       - develop
 
 env: 
-  CODE_SERVICE_NAME: demo22
+  CODE_SERVICE_NAME: demo90
   CODE_PACKAGE: com.tencent.ep
   CODE_LANGUAGE: java
   PASSADMIN_APP: blurooochen_app
   PASSADMIN_SERVER: blurooochen_server
   PASSADMIN_ENV: blurooochen_test
-  GIT_GROUP: blurooochen
+  GIT_GROUP: code-quality/cli-tools
   GIT_TOKEN: seoz9b0eNvn0gYFWWAYw
-  BK_PROJECT_ID: code-quality
-  BK_TEMPLATE_ID: de51b73181a04b27beff2cd89a168a7e
-  BK_TEMPLATE_VERSION: 50457
-  BK_TEMPLATE_NAME: 测试啊12
+  BK_PROJECT_ID: cli-tools-pipelines
+  BK_TEMPLATE_ID: d22c72de7e6240bfa9fdf767a536a5f1
+  BK_TEMPLATE_VERSION: 95805
+  ATTA_ID: 0cd00036817
+  ATTA_TOKEN: 4799234659
 
 
 jobs:
@@ -27,27 +28,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 生成脚手架代码
-        uses: blurooo/fef@master
+        uses: /Users/buthim/project/vscode/action/fef
         with:
           run: 'archetype-maven'
           params: 'create --artifactId $CODE_SERVICE_NAME --cloneType ssh --groupId $GIT_GROUP --package $CODE_PACKAGE --version 1.0.0 --token $GIT_TOKEN'
       - name: 创建123环境 + 服务并写入配置
-        uses: blurooo/fef@master
+        uses: /Users/buthim/project/vscode/action/fef
+        id: passadmin
         with:
           run: 'passadmin'
-          params: 'create --app $PASSADMIN_APP --envName $PASSADMIN_ENV --server $PASSADMIN_SERVER --lang $CODE_LANGUAGE --package $CODE_PACKAGE'
+          params: 'create --app $PASSADMIN_APP --envName $PASSADMIN_ENV --server $PASSADMIN_SERVER --lang $CODE_LANGUAGE --package $CODE_PACKAGE --attaId $ATTA_ID --attaToken $ATTA_TOKEN'
+      - name: 获取输出
+        run: 'echo $PASSADMIN_APP env: ${{ steps.passadmin.outputs.env }} user: ${{ steps.passadmin.outputs.user }}'
       - name: 克隆流水线模板
-        uses: blurooo/fef@master
+        uses: /Users/buthim/project/vscode/action/fef
+        id: pipelineClone
         with:
           run: 'bkm'
-          params: 'template create --pid $BK_PROJECT_ID --tid $BK_TEMPLATE_ID --version $BK_TEMPLATE_VERSION --name $BK_TEMPLATE_NAME --param repoName=$GIT_GROUP/$CODE_SERVICE_NAME --param serviceName=$CODE_SERVICE_NAME --param user=$USER_NAME --param code_path=http://git.code.oa.com/"$GIT_GROUP"/"$CODE_SERVICE_NAME".git --param app=$PASSADMIN_APP --param git_key=$GIT_TOKEN --param server=$PASSADMIN_SERVER --param language=$CODE_LANGUAGE --param env=$PASSADMIN_ENV_ID'
+          params: 'template create --pid $BK_PROJECT_ID --tid $BK_TEMPLATE_ID --version $BK_TEMPLATE_VERSION --name $CODE_SERVICE_NAME --param repoName=$GIT_GROUP/$CODE_SERVICE_NAME --param serviceName=$CODE_SERVICE_NAME --param user=${{ steps.passadmin.outputs.user }} --param code_path=http://git.code.oa.com/${GIT_GROUP}/${CODE_SERVICE_NAME}.git --param app=$PASSADMIN_APP --param server=$PASSADMIN_SERVER --param language=$CODE_LANGUAGE --param env=${{ steps.passadmin.outputs.env }}'
       - name: 关联代码仓库到流水线
-        uses: blurooo/fef@master
+        uses: /Users/buthim/project/vscode/action/fef
         with:
           run: 'bkm'
-          params: 'repo create --pid $BK_PROJECT_ID --projectName $GIT_GROUP/$CODE_SERVICE_NAME --type codeGit --aliasName $GIT_GROUP/$CODE_SERVICE_NAME --authType OAUTH --url http://git.code.oa.com/"$GIT_GROUP"/"$CODE_SERVICE_NAME".git --userName $USER_NAME'
+          params: 'repo create --pid $BK_PROJECT_ID --projectName $GIT_GROUP/$CODE_SERVICE_NAME --type codeGit --aliasName $GIT_GROUP/$CODE_SERVICE_NAME --authType OAUTH --url http://git.code.oa.com/${GIT_GROUP}/${CODE_SERVICE_NAME}.git --userName ${{ steps.passadmin.outputs.user }}'
       - name: 触发流水线构建
-        uses: blurooo/fef@master
+        uses: /Users/buthim/project/vscode/action/fef
         with:
           run: 'bkm'
-          params: 'pipeline start --projectId $BK_PROJECT_ID --pipelineId p-5d2cee4708014caf826581fb0b337489'
+          params: 'pipeline start --projectId $BK_PROJECT_ID --pipelineId ${{ steps.pipelineClone.outputs.pipelineId }}'
