@@ -7,7 +7,7 @@ on:
       - develop
 
 env: 
-  CODE_SERVICE_NAME: demo90
+  CODE_SERVICE_NAME: demo101
   CODE_PACKAGE: com.tencent.ep
   CODE_LANGUAGE: java
   PASSADMIN_APP: blurooochen_app
@@ -28,31 +28,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 生成脚手架代码
-        uses: /Users/buthim/project/vscode/action/fef
+        bee-uses: blurooochen/fef@master
         with:
           run: 'archetype-maven'
           params: 'create --artifactId $CODE_SERVICE_NAME --cloneType ssh --groupId $GIT_GROUP --package $CODE_PACKAGE --version 1.0.0 --token $GIT_TOKEN'
+          failedWhenNonZeroExit: true
       - name: 创建123环境 + 服务并写入配置
-        uses: /Users/buthim/project/vscode/action/fef
+        bee-uses: blurooochen/fef@master
         id: passadmin
         with:
           run: 'passadmin'
           params: 'create --app $PASSADMIN_APP --envName $PASSADMIN_ENV --server $PASSADMIN_SERVER --lang $CODE_LANGUAGE --package $CODE_PACKAGE --attaId $ATTA_ID --attaToken $ATTA_TOKEN'
+          failedWhenNonZeroExit: true
       - name: 获取输出
         run: 'echo $PASSADMIN_APP env: ${{ steps.passadmin.outputs.env }} user: ${{ steps.passadmin.outputs.user }}'
       - name: 克隆流水线模板
-        uses: /Users/buthim/project/vscode/action/fef
+        bee-uses: blurooochen/fef@master
         id: pipelineClone
         with:
           run: 'bkm'
           params: 'template create --pid $BK_PROJECT_ID --tid $BK_TEMPLATE_ID --version $BK_TEMPLATE_VERSION --name $CODE_SERVICE_NAME --param repoName=$GIT_GROUP/$CODE_SERVICE_NAME --param serviceName=$CODE_SERVICE_NAME --param user=${{ steps.passadmin.outputs.user }} --param code_path=http://git.code.oa.com/${GIT_GROUP}/${CODE_SERVICE_NAME}.git --param app=$PASSADMIN_APP --param server=$PASSADMIN_SERVER --param language=$CODE_LANGUAGE --param env=${{ steps.passadmin.outputs.env }}'
+          failedWhenNonZeroExit: true
       - name: 关联代码仓库到流水线
-        uses: /Users/buthim/project/vscode/action/fef
+        bee-uses: blurooochen/fef@master
         with:
           run: 'bkm'
           params: 'repo create --pid $BK_PROJECT_ID --projectName $GIT_GROUP/$CODE_SERVICE_NAME --type codeGit --aliasName $GIT_GROUP/$CODE_SERVICE_NAME --authType OAUTH --url http://git.code.oa.com/${GIT_GROUP}/${CODE_SERVICE_NAME}.git --userName ${{ steps.passadmin.outputs.user }}'
+          failedWhenNonZeroExit: true
       - name: 触发流水线构建
-        uses: /Users/buthim/project/vscode/action/fef
+        bee-uses: blurooochen/fef@master
         with:
           run: 'bkm'
           params: 'pipeline start --projectId $BK_PROJECT_ID --pipelineId ${{ steps.pipelineClone.outputs.pipelineId }}'
+          failfailedWhenNonZeroExit: true

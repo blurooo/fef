@@ -5,6 +5,7 @@ import { Git } from './install/git';
 import Linker from './linker';
 import { PluginInfo } from './install/plugin';
 import { setOutput } from './utils/output';
+import { escape, split } from './utils/args';
 
 function enableCommand(workDir: string) {
   const [nodeCommand, fefEnterFile] = process.argv;
@@ -16,7 +17,11 @@ function enableCommand(workDir: string) {
   const linker = new Linker(nodeCommand);
   return Promise.all([
     linker.register(curBinPath, libBinPath, fefEnterFile, config.execName),
-    linker.register(curBinPath, libBinPath, `${fefEnterFile} ${config.setOutputCommand}`, config.setOutputCommand)
+    linker.register(
+      curBinPath, libBinPath,
+      `${fefEnterFile} ${config.setOutputCommand}`,
+      config.setOutputCommand,
+    ),
   ]);
 }
 
@@ -38,7 +43,8 @@ async function exec() {
     fromAction = false;
     [run] = argv;
     const params = argv.slice(1)
-      .filter(a => !config.filterParams.includes(a));
+      .filter(a => !config.filterParams.includes(a))
+      .map(a => escape(a));
     paramsStr = params.join(' ');
     if (run === config.setOutputCommand) {
       return handleSetOutput(params);
@@ -46,6 +52,8 @@ async function exec() {
   } else {
     run = core.getInput('run');
     paramsStr = core.getInput('params');
+    const params = split(paramsStr);
+    paramsStr = params.map(a => escape(a)).join(' ');
   }
   const pluginInfo = await enableEnv(run, !fromAction);
   try {
@@ -73,8 +81,8 @@ exec().catch((e) => {
 });
 
 function handleSetOutput(params: string[]) {
-  for (const param of params) {
-    const [key, value] = param.split('=');
+  for (let i = 0; i < params.length; i++) {
+    const [key, value] = params[i].split('=');
     if (!key || !value) {
       continue;
     }
