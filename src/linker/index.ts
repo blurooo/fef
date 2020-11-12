@@ -24,14 +24,61 @@ export default class Linker {
    * @param command it could be checkstyle or checkstyle@v0.0.5
    * @param name    always checkstyle, use command when it does not exist
    */
-  async register(binPath: string, libPath: string, command: string, name?: string) {
+  public async register(binPath: string, libPath: string, command: string, name?: string) {
     if (this.currentOs === 'win32') {
       return this.linkToWin32(binPath, command, name);
     }
     return this.linkToUnixLike(binPath, libPath, command, name);
   }
 
-  async remove(binPath: string, libPath: string, name: string) {
+  /**
+   * 注册自定义指定
+   * @param binPath
+   * @param libPath
+   * @param commands
+   * @param name    always checkstyle, use command when it does not exist
+   */
+  public registerCustom(binPath: string, libPath: string, commands: string[], name: string) {
+    if (this.currentOs === 'win32') {
+      return this.linkCustomToWin32(binPath, commands, name);
+    }
+    return this.linkCustomToUnixLike(binPath, libPath, commands, name);
+  }
+
+
+  private async linkCustomToWin32(binPath: string, commands: string[], name: string) {
+    await this.enableDir(binPath);
+    const file = this.cmdFile(binPath, name);
+    const template = this.customCmdTemplate(commands);
+    await this.writeExecFile(file, template);
+  }
+
+
+  private async linkCustomToUnixLike(
+    binPath: string,
+    libPath: string,
+    commands: string[],
+    name: string
+  ) {
+    await this.enableDir(binPath, libPath);
+    const file = this.shellFile(libPath, name);
+    const template = this.customShellTemplate(commands);
+    const commandLink = path.join(binPath, name);
+    await this.writeExecFile(file, template);
+    await this.link(file, commandLink);
+  }
+
+  private customShellTemplate(commands: string[]): string {
+    const commandStr = commands.map(cmd => cmd += ' "$@"').join('\n');
+    return `#!/bin/sh\n${commandStr}`;
+  }
+
+  private customCmdTemplate(commands: string[]): string {
+    const commandStr = commands.map(cmd => cmd += ' %*').join('\n');
+    return `@echo off\n${commandStr}`;
+  }
+
+  private remove(binPath: string, libPath: string, name: string) {
     if (this.currentOs === 'win32') {
       return this.removeOnWin32(binPath, name);
     }

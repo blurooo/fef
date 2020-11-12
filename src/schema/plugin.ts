@@ -3,35 +3,38 @@ import { Dependencies } from './dependencies';
 import { platformType } from './base';
 
 export class Plugin {
-  path: string;
+  public path: string;
 
-  desc: string;
+  public desc: string;
 
-  dep: Dependencies;
+  public dep: Dependencies;
 
-  command: Command;
+  public command: Command;
 
-  autoUpdate = true;
+  public autoUpdate = true;
 
-  test: Command;
+  public test: Command;
 
-  preInstall: Command;
+  public preInstall: Command;
 
-  postInstall: Command;
+  public postInstall: Command;
 
-  preRun: Command;
+  public preRun: Command;
 
-  postRun: Command;
+  public postRun: Command;
 
-  preUpgrade: Command;
+  public preUpgrade: Command;
 
-  postUpgrade: Command;
+  public postUpgrade: Command;
 
-  preUninstall: Command;
+  public preUninstall: Command;
 
-  postUninstall: Command;
+  public postUninstall: Command;
 
-  usage: any;
+  public usage: any;
+
+  // 是否属于语言运行时，语言运行时不需要经过feflow代理执行
+  public langRuntime: boolean = false;
 
   constructor(pluginPath: string, config: any) {
     if (!platformType) {
@@ -52,9 +55,10 @@ export class Plugin {
     this.preUninstall = new Command(this.path, config?.['pre-uninstall']);
     this.postUninstall = new Command(this.path, config?.['post-uninstall']);
     this.usage = config?.['usage'];
+    this.langRuntime = config?.['lang-runtime'] || false;
   }
 
-  async check() {
+  public async check() {
     await this.dep.check();
     this.command.check();
   }

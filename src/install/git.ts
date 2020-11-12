@@ -7,6 +7,7 @@ import util from 'util';
 import { exec } from 'child_process';
 import { PluginInfo } from './plugin';
 import config from '../config';
+import { LATEST } from '../utils/constant';
 
 const execAsync = util.promisify(exec);
 
@@ -31,8 +32,8 @@ export class Git {
     } else {
       plugin = plugin.substring(config.pluginPrefix.length);
     }
-    if (!ver || ver === 'latest') {
-      ver = 'latest';
+    if (!ver || ver === LATEST) {
+      ver = LATEST;
     }
     ver = VersionStyle.toFull(ver);
     if (!VersionStyle.check(ver)) {
@@ -44,7 +45,7 @@ export class Git {
     } else {
       this.checkTask[pluginInfo.pluginPath] = 'init';
     }
-    if (ver === 'latest') {
+    if (ver === LATEST) {
       try {
         // 完成标志存在且非latest版本则不需要下载
         const doneFile = path.join(pluginInfo.pluginPath, config.fefDoneFile);
@@ -59,13 +60,13 @@ export class Git {
     }
     url = await this.transformUrl(url);
     let checkTag = '';
-    if (ver === 'latest') {
+    if (ver === LATEST) {
       const latestTag = await this.getTag(url);
       if (!latestTag) {
         return Promise.reject('no any version');
       }
       checkTag = latestTag;
-      ver = 'latest';
+      ver = LATEST;
     } else {
       const invalidVer = await this.getTag(url, ver);
       if (!invalidVer) {
@@ -86,7 +87,7 @@ export class Git {
         this.checkTask[pluginInfo.pluginPath] = e;
       }
     }
-    if (ver === 'latest') {
+    if (ver === LATEST) {
       await fs.link(pluginRealPath, pluginInfo.pluginPath);
     }
     await this.enableDeps(pluginInfo);
@@ -110,6 +111,10 @@ export class Git {
     const tasks = protocol.dep.plugin.map(plugin => this.enablePlugin(plugin, true).then((depPluginInfo) => {
       const linker = new Linker(config.execName);
       const command = `${depPluginInfo.pluginName}@${depPluginInfo.ver}`;
+      if (protocol.langRuntime) {
+        const commands = protocol.command.getCommands();
+        return linker.registerCustom(binPath, libPath, commands, command);
+      }
       return linker.register(binPath, libPath, command, depPluginInfo.pluginName);
     }));
     // 写入安装完成标志
