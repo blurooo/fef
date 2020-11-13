@@ -31,6 +31,10 @@ export class PluginInfo {
     return path.join(this.pluginRootPath, `${this.pluginFullName}@${this.checkoutTag}`);
   }
 
+  getOtherPluginPath(fullName: string, tag: string): string {
+    return path.join(this.pluginRootPath, `${fullName}@${tag}`);
+  }
+
   async getProtocol(): Promise<Plugin> {
     if (!this.protocol) {
       const protocol = await parseYaml(this.protocolFile);

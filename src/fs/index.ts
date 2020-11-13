@@ -43,7 +43,7 @@ export default new class {
     return this.symlink(source, target);
   }
 
-  private async deleteDir(dirPath: string) {
+  public async deleteDir(dirPath: string) {
     const files = await this.readdir(dirPath);
     const awaitPs = [];
     for (let file of files) {

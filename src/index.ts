@@ -6,6 +6,7 @@ import Linker from './linker';
 import { PluginInfo } from './install/plugin';
 import { setOutput } from './utils/output';
 import { escape, split } from './utils/args';
+import fs from './fs';
 
 function enableCommand(workDir: string) {
   const [nodeCommand, fefEnterFile] = process.argv;
@@ -77,6 +78,7 @@ async function execPlugin(pluginInfo: PluginInfo, params: string) {
 }
 
 exec().catch((e) => {
+  console.log(`exec failed: ${e}`);
   process.exit(e?.status || 1);
 });
 

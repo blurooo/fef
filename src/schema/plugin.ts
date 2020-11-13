@@ -44,7 +44,7 @@ export class Plugin {
     this.desc = config?.['desc'];
     this.dep = new Dependencies(config?.dep);
     this.command = new Command(this.path, config?.command);
-    this.autoUpdate = config?.['auto-update'] || false;
+    this.autoUpdate = config?.['auto-update'] === false ? false : true;
     this.test = new Command(this.path, config?.test);
     this.preInstall = new Command(this.path, config?.['pre-install']);
     this.postInstall = new Command(this.path, config?.['post-install']);

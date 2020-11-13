@@ -53,7 +53,19 @@ module.exports =
 /* 0 */,
 /* 1 */,
 /* 2 */,
-/* 3 */,
+/* 3 */
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.UNKNOWN_VERSION = exports.DEFAULT_VERSION = exports.LATEST = void 0;
+exports.LATEST = 'latest';
+exports.DEFAULT_VERSION = 'v0.0.0';
+exports.UNKNOWN_VERSION = 'unknown';
+//# sourceMappingURL=constant.js.map
+
+/***/ }),
 /* 4 */,
 /* 5 */,
 /* 6 */,
@@ -5070,19 +5082,23 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.split = exports.escape = void 0;
 const os_1 = __importDefault(__webpack_require__(87));
-const OS_WIN = "win32";
+const OS_WIN = 'win32';
 // 对命令字符串进行shell转义
-function escape(arg) {
+function escape(arg = '') {
     // windows保持原样
     if (os_1.default.platform() === OS_WIN) {
         return arg;
     }
-    if (/[^A-Za-z0-9_\/:=-]/.test(arg)) {
-        arg = "'" + arg.replace(/'/g, "'\\''") + "'";
-        arg = arg.replace(/^(?:'')+/g, '') // 消除重复的单引号
-            .replace(/\\'''/g, "\\'"); // 如果有两个转义单引号，则删除非转义单引号
+    let newArg = arg;
+    if (newArg.startsWith('\'') && newArg.endsWith('\'')) {
+        newArg = newArg.substring(1, newArg.length - 1);
     }
-    return arg;
+    if (/[^A-Za-z0-9_/:=-]/.test(newArg)) {
+        newArg = '\'' + newArg.replace(/'/g, '\'\\\'\'') + '\'';
+        newArg = newArg.replace(/^(?:'')+/g, '') // 消除重复的单引号
+            .replace(/\\'''/g, '\\\''); // 如果有两个转义单引号，则删除非转义单引号
+    }
+    return newArg;
 }
 exports.escape = escape;
 // 对字符串进行参数分隔
@@ -9303,7 +9319,7 @@ function enableCommand(workDir) {
     const linker = new linker_1.default(nodeCommand);
     return Promise.all([
         linker.register(curBinPath, libBinPath, fefEnterFile, config_1.default.execName),
-        linker.register(curBinPath, libBinPath, `${fefEnterFile} ${config_1.default.setOutputCommand}`, config_1.default.setOutputCommand)
+        linker.register(curBinPath, libBinPath, `${fefEnterFile} ${config_1.default.setOutputCommand}`, config_1.default.setOutputCommand),
     ]);
 }
 async function enableEnv(plugin, silent) {
@@ -9357,11 +9373,12 @@ async function execPlugin(pluginInfo, params) {
     protocol.command.run(params);
 }
 exec().catch((e) => {
+    console.log(`exec failed: ${e}`);
     process.exit((e === null || e === void 0 ? void 0 : e.status) || 1);
 });
 function handleSetOutput(params) {
-    for (const param of params) {
-        const [key, value] = param.split('=');
+    for (let i = 0; i < params.length; i++) {
+        const [key, value] = params[i].split('=');
         if (!key || !value) {
             continue;
         }
@@ -12844,6 +12861,8 @@ const base_1 = __webpack_require__(960);
 class Plugin {
     constructor(pluginPath, config) {
         this.autoUpdate = true;
+        // 是否属于语言运行时，语言运行时不需要经过feflow代理执行
+        this.langRuntime = false;
         if (!base_1.platformType) {
             throw `current operating system [${base_1.platformType}] is not supported`;
         }
@@ -12851,7 +12870,7 @@ class Plugin {
         this.desc = config === null || config === void 0 ? void 0 : config['desc'];
         this.dep = new dependencies_1.Dependencies(config === null || config === void 0 ? void 0 : config.dep);
         this.command = new command_1.Command(this.path, config === null || config === void 0 ? void 0 : config.command);
-        this.autoUpdate = (config === null || config === void 0 ? void 0 : config['auto-update']) || false;
+        this.autoUpdate = (config === null || config === void 0 ? void 0 : config['auto-update']) === false ? false : true;
         this.test = new command_1.Command(this.path, config === null || config === void 0 ? void 0 : config.test);
         this.preInstall = new command_1.Command(this.path, config === null || config === void 0 ? void 0 : config['pre-install']);
         this.postInstall = new command_1.Command(this.path, config === null || config === void 0 ? void 0 : config['post-install']);
@@ -12862,6 +12881,7 @@ class Plugin {
         this.preUninstall = new command_1.Command(this.path, config === null || config === void 0 ? void 0 : config['pre-uninstall']);
         this.postUninstall = new command_1.Command(this.path, config === null || config === void 0 ? void 0 : config['post-uninstall']);
         this.usage = config === null || config === void 0 ? void 0 : config['usage'];
+        this.langRuntime = (config === null || config === void 0 ? void 0 : config['lang-runtime']) || false;
     }
     async check() {
         await this.dep.check();
@@ -27830,6 +27850,9 @@ class PluginInfo {
     getPluginRealPath() {
         return path_1.default.join(this.pluginRootPath, `${this.pluginFullName}@${this.checkoutTag}`);
     }
+    getOtherPluginPath(fullName, tag) {
+        return path_1.default.join(this.pluginRootPath, `${fullName}@${tag}`);
+    }
     async getProtocol() {
         if (!this.protocol) {
             const protocol = await yaml_1.parseYaml(this.protocolFile);
@@ -33857,7 +33880,42 @@ class Linker {
         }
         return this.linkToUnixLike(binPath, libPath, command, name);
     }
-    async remove(binPath, libPath, name) {
+    /**
+     * 注册自定义指定
+     * @param binPath
+     * @param libPath
+     * @param commands
+     * @param name    always checkstyle, use command when it does not exist
+     */
+    registerCustom(binPath, libPath, commands, name) {
+        if (this.currentOs === 'win32') {
+            return this.linkCustomToWin32(binPath, commands, name);
+        }
+        return this.linkCustomToUnixLike(binPath, libPath, commands, name);
+    }
+    async linkCustomToWin32(binPath, commands, name) {
+        await this.enableDir(binPath);
+        const file = this.cmdFile(binPath, name);
+        const template = this.customCmdTemplate(commands);
+        await this.writeExecFile(file, template);
+    }
+    async linkCustomToUnixLike(binPath, libPath, commands, name) {
+        await this.enableDir(binPath, libPath);
+        const file = this.shellFile(libPath, name);
+        const template = this.customShellTemplate(commands);
+        const commandLink = path_1.default.join(binPath, name);
+        await this.writeExecFile(file, template);
+        await this.link(file, commandLink);
+    }
+    customShellTemplate(commands) {
+        const commandStr = commands.map(cmd => cmd += ' "$@"').join('\n');
+        return `#!/bin/sh\n${commandStr}`;
+    }
+    customCmdTemplate(commands) {
+        const commandStr = commands.map(cmd => cmd += ' %*').join('\n');
+        return `@echo off\n${commandStr}`;
+    }
+    remove(binPath, libPath, name) {
         if (this.currentOs === 'win32') {
             return this.removeOnWin32(binPath, name);
         }
@@ -48177,6 +48235,7 @@ const util_1 = __importDefault(__webpack_require__(669));
 const child_process_1 = __webpack_require__(129);
 const plugin_1 = __webpack_require__(527);
 const config_1 = __importDefault(__webpack_require__(802));
+const constant_1 = __webpack_require__(3);
 const execAsync = util_1.default.promisify(child_process_1.exec);
 class Git {
     constructor(silent) {
@@ -48193,8 +48252,8 @@ class Git {
         else {
             plugin = plugin.substring(config_1.default.pluginPrefix.length);
         }
-        if (!ver || ver === 'latest') {
-            ver = 'latest';
+        if (!ver || ver === constant_1.LATEST) {
+            ver = constant_1.LATEST;
         }
         ver = version_1.default.toFull(ver);
         if (!version_1.default.check(ver)) {
@@ -48207,7 +48266,7 @@ class Git {
         else {
             this.checkTask[pluginInfo.pluginPath] = 'init';
         }
-        if (ver === 'latest') {
+        if (ver !== constant_1.LATEST) {
             try {
                 // 完成标志存在且非latest版本则不需要下载
                 const doneFile = path_1.default.join(pluginInfo.pluginPath, config_1.default.fefDoneFile);
@@ -48223,13 +48282,33 @@ class Git {
         }
         url = await this.transformUrl(url);
         let checkTag = '';
-        if (ver === 'latest') {
-            const latestTag = await this.getTag(url);
+        let previousPluginPath = '';
+        if (ver == constant_1.LATEST) {
+            const [currentTag, latestTag] = await Promise.all([
+                this.getCurrentTag(pluginInfo.pluginPath),
+                this.getTag(url)
+            ]);
             if (!latestTag) {
-                return Promise.reject('no any version');
+                return Promise.reject('no valid version found');
+            }
+            if (currentTag !== constant_1.UNKNOWN_VERSION) {
+                // 版本一致
+                if (currentTag === latestTag) {
+                    return pluginInfo;
+                }
+                // 无效版本
+                if (currentTag !== latestTag && version_1.default.gt(currentTag, latestTag)) {
+                    return pluginInfo;
+                }
+                // 无更更新的场景
+                const protocol = await pluginInfo.getProtocol();
+                if (!protocol.autoUpdate) {
+                    return pluginInfo;
+                }
+                previousPluginPath = pluginInfo.getOtherPluginPath(pluginFullName, currentTag);
             }
             checkTag = latestTag;
-            ver = 'latest';
+            ver = constant_1.LATEST;
         }
         else {
             const invalidVer = await this.getTag(url, ver);
@@ -48243,6 +48322,7 @@ class Git {
         const pluginRealPath = pluginInfo.getPluginRealPath();
         try {
             await fs_1.default.access(pluginRealPath, fs_1.default.constants.F_OK);
+            await fs_1.default.deleteDir(pluginRealPath);
         }
         catch (e) {
             try {
@@ -48253,7 +48333,7 @@ class Git {
                 this.checkTask[pluginInfo.pluginPath] = e;
             }
         }
-        if (ver === 'latest') {
+        if (ver === constant_1.LATEST) {
             await fs_1.default.link(pluginRealPath, pluginInfo.pluginPath);
         }
         await this.enableDeps(pluginInfo);
@@ -48267,6 +48347,12 @@ class Git {
                 }
             }));
         }
+        // 确保非依赖
+        if (previousPluginPath && !this.checkTask[previousPluginPath]) {
+            fs_1.default.deleteDir(previousPluginPath).catch(e => {
+                this.silent || console.log(`remove ${previousPluginPath} fail: ${e}`);
+            });
+        }
         return pluginInfo;
     }
     async enableDeps(pluginInfo) {
@@ -48274,9 +48360,14 @@ class Git {
         const binPath = path_1.default.join(pluginPath, '.bin');
         const libPath = path_1.default.join(pluginPath, '.lib');
         const protocol = await pluginInfo.getProtocol();
-        const tasks = protocol.dep.plugin.map(plugin => this.enablePlugin(plugin, true).then((depPluginInfo) => {
+        const tasks = protocol.dep.plugin.map(plugin => this.enablePlugin(plugin, true).then(async (depPluginInfo) => {
             const linker = new linker_1.default(config_1.default.execName);
             const command = `${depPluginInfo.pluginName}@${depPluginInfo.ver}`;
+            const depProtocol = await depPluginInfo.getProtocol();
+            if (depProtocol.langRuntime) {
+                const commands = protocol.command.getCommands();
+                return linker.registerCustom(binPath, libPath, commands, command);
+            }
             return linker.register(binPath, libPath, command, depPluginInfo.pluginName);
         }));
         // 写入安装完成标志
@@ -48368,19 +48459,30 @@ class Git {
         return match[1];
     }
     async isSupportSSH(url) {
-        var _a;
+        var _a, _b;
         if (this.isSSH) {
             return this.isSSH;
         }
+        let stderr;
         try {
             const res = await execAsync(`ssh -vT ${url}`, { timeout: 1000, windowsHide: true });
-            const stderr = (_a = res === null || res === void 0 ? void 0 : res.stderr) === null || _a === void 0 ? void 0 : _a.toString();
-            this.isSSH = /Authentication succeeded/.test(stderr);
-            return this.isSSH;
+            stderr = (_a = res === null || res === void 0 ? void 0 : res.stderr) === null || _a === void 0 ? void 0 : _a.toString();
         }
         catch (err) {
-            this.isSSH = false;
-            return this.isSSH;
+            stderr = (_b = err === null || err === void 0 ? void 0 : err.stderr) === null || _b === void 0 ? void 0 : _b.toString();
+        }
+        this.isSSH = /Authentication succeeded/.test(stderr);
+        return this.isSSH;
+    }
+    async getCurrentTag(repoPath) {
+        try {
+            const { stdout } = await execAsync(`git -C ${repoPath} tag -l`, { windowsHide: true });
+            let tags = stdout === null || stdout === void 0 ? void 0 : stdout.toString().trim().split('\n');
+            tags = tags.filter(v => version_1.default.check(v)).sort((a, b) => version_1.default.gt(a, b) ? -1 : 1);
+            return (tags === null || tags === void 0 ? void 0 : tags[0]) || constant_1.DEFAULT_VERSION;
+        }
+        catch (e) {
+            return constant_1.UNKNOWN_VERSION;
         }
     }
 }

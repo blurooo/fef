@@ -7,7 +7,7 @@ import util from 'util';
 import { exec } from 'child_process';
 import { PluginInfo } from './plugin';
 import config from '../config';
-import { LATEST } from '../utils/constant';
+import { LATEST, DEFAULT_VERSION, UNKNOWN_VERSION } from '../utils/constant';
 
 const execAsync = util.promisify(exec);
 
@@ -45,7 +45,7 @@ export class Git {
     } else {
       this.checkTask[pluginInfo.pluginPath] = 'init';
     }
-    if (ver === LATEST) {
+    if (ver !== LATEST) {
       try {
         // 完成标志存在且非latest版本则不需要下载
         const doneFile = path.join(pluginInfo.pluginPath, config.fefDoneFile);
@@ -60,10 +60,30 @@ export class Git {
     }
     url = await this.transformUrl(url);
     let checkTag = '';
-    if (ver === LATEST) {
-      const latestTag = await this.getTag(url);
+    let previousPluginPath = '';
+    if (ver == LATEST) {
+      const [ currentTag, latestTag ] = await Promise.all([
+        this.getCurrentTag(pluginInfo.pluginPath),
+        this.getTag(url)
+      ]);
       if (!latestTag) {
-        return Promise.reject('no any version');
+        return Promise.reject('no valid version found');
+      }
+      if (currentTag !== UNKNOWN_VERSION) {
+        // 版本一致
+        if (currentTag === latestTag) {
+          return pluginInfo;
+        }
+        // 无效版本
+        if (currentTag !== latestTag && VersionStyle.gt(currentTag, latestTag)) {
+          return pluginInfo;
+        }
+        // 无更更新的场景
+        const protocol = await pluginInfo.getProtocol();
+        if (!protocol.autoUpdate) {
+          return pluginInfo;
+        }
+        previousPluginPath = pluginInfo.getOtherPluginPath(pluginFullName, currentTag);
       }
       checkTag = latestTag;
       ver = LATEST;
@@ -79,6 +99,7 @@ export class Git {
     const pluginRealPath = pluginInfo.getPluginRealPath();
     try {
       await fs.access(pluginRealPath, fs.constants.F_OK);
+      await fs.deleteDir(pluginRealPath);
     } catch (e) {
       try {
         this.silent || console.log(`download ${plugin}@${ver} from ${url}`);
@@ -100,6 +121,12 @@ export class Git {
         }
       }));
     }
+    // 确保非依赖
+    if (previousPluginPath && !this.checkTask[previousPluginPath]) {
+      fs.deleteDir(previousPluginPath).catch(e => {
+        this.silent || console.log(`remove ${previousPluginPath} fail: ${e}`);
+      });
+    }
     return pluginInfo;
   }
 
@@ -108,10 +135,11 @@ export class Git {
     const binPath = path.join(pluginPath, '.bin');
     const libPath = path.join(pluginPath, '.lib');
     const protocol = await pluginInfo.getProtocol();
-    const tasks = protocol.dep.plugin.map(plugin => this.enablePlugin(plugin, true).then((depPluginInfo) => {
+    const tasks = protocol.dep.plugin.map(plugin => this.enablePlugin(plugin, true).then(async (depPluginInfo) => {
       const linker = new Linker(config.execName);
       const command = `${depPluginInfo.pluginName}@${depPluginInfo.ver}`;
-      if (protocol.langRuntime) {
+      const depProtocol = await depPluginInfo.getProtocol();
+      if (depProtocol.langRuntime) {
         const commands = protocol.command.getCommands();
         return linker.registerCustom(binPath, libPath, commands, command);
       }
@@ -214,14 +242,28 @@ export class Git {
     if (this.isSSH) {
       return this.isSSH;
     }
+    let stderr;
     try {
       const res: any = await execAsync(`ssh -vT ${url}`, { timeout: 1000, windowsHide: true });
-      const stderr = res?.stderr?.toString();
-      this.isSSH = /Authentication succeeded/.test(stderr);
-      return this.isSSH;
+      stderr = res?.stderr?.toString();
     } catch (err) {
-      this.isSSH = false;
-      return this.isSSH;
+      stderr = err?.stderr?.toString();
+    }
+    this.isSSH = /Authentication succeeded/.test(stderr);
+    return this.isSSH;
+  }
+
+  private async getCurrentTag(
+    repoPath: string
+  ): Promise<string> {
+    try {
+      const { stdout } = await execAsync(`git -C ${repoPath} tag -l`, { windowsHide: true });
+      let tags = stdout?.toString().trim().split('\n');
+      tags = tags.filter(v => VersionStyle.check(v)).sort((a, b) => VersionStyle.gt(a, b) ? -1 : 1);
+      return tags?.[0] || DEFAULT_VERSION;
+    } catch (e) {
+      return UNKNOWN_VERSION;
     }
   }
+
 }
