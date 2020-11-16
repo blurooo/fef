@@ -53,7 +53,7 @@ async function exec() {
     run = core.getInput('run');
     paramsStr = core.getInput('params');
     const params = split(paramsStr);
-    paramsStr = params.map(a => escape(a)).join(' ');
+    paramsStr = params.join(' ');
   }
   const pluginInfo = await enableEnv(run, !fromAction);
   try {
