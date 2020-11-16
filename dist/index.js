@@ -9339,9 +9339,8 @@ async function exec() {
         fromAction = false;
         [run] = argv;
         const params = argv.slice(1)
-            .filter(a => !config_1.default.filterParams.includes(a))
-            .map(a => args_1.escape(a));
-        paramsStr = params.join(' ');
+            .filter(a => !config_1.default.filterParams.includes(a));
+        paramsStr = params.map(a => args_1.escape(a)).join(' ');
         if (run === config_1.default.setOutputCommand) {
             return handleSetOutput(params);
         }

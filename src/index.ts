@@ -44,9 +44,8 @@ async function exec() {
     fromAction = false;
     [run] = argv;
     const params = argv.slice(1)
-      .filter(a => !config.filterParams.includes(a))
-      .map(a => escape(a));
-    paramsStr = params.join(' ');
+      .filter(a => !config.filterParams.includes(a));
+    paramsStr = params.map(a => escape(a)).join(' ');
     if (run === config.setOutputCommand) {
       return handleSetOutput(params);
     }
