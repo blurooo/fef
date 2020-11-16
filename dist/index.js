@@ -5071,44 +5071,7 @@ Identity._oldVersionDetect = function (obj) {
 
 
 /***/ }),
-/* 76 */
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.split = exports.escape = void 0;
-const os_1 = __importDefault(__webpack_require__(87));
-const OS_WIN = 'win32';
-// 对命令字符串进行shell转义
-function escape(arg = '') {
-    // windows保持原样
-    if (os_1.default.platform() === OS_WIN) {
-        return arg;
-    }
-    let newArg = arg;
-    if (newArg.startsWith('\'') && newArg.endsWith('\'')) {
-        newArg = newArg.substring(1, newArg.length - 1);
-    }
-    if (/[^A-Za-z0-9_/:=-]/.test(newArg)) {
-        newArg = '\'' + newArg.replace(/'/g, '\'\\\'\'') + '\'';
-        newArg = newArg.replace(/^(?:'')+/g, '') // 消除重复的单引号
-            .replace(/\\'''/g, '\\\''); // 如果有两个转义单引号，则删除非转义单引号
-    }
-    return newArg;
-}
-exports.escape = escape;
-// 对字符串进行参数分隔
-function split(args) {
-    return args.match(/"[^"]+"|'[^']+'|\S+/g) || [];
-}
-exports.split = split;
-//# sourceMappingURL=args.js.map
-
-/***/ }),
+/* 76 */,
 /* 77 */
 /***/ (function(module) {
 
@@ -9307,7 +9270,6 @@ const core = __importStar(__webpack_require__(51));
 const git_1 = __webpack_require__(997);
 const linker_1 = __importDefault(__webpack_require__(708));
 const output_1 = __webpack_require__(745);
-const args_1 = __webpack_require__(76);
 function enableCommand(workDir) {
     var _a;
     const [nodeCommand, fefEnterFile] = process.argv;
@@ -9340,7 +9302,7 @@ async function exec() {
         [run] = argv;
         const params = argv.slice(1)
             .filter(a => !config_1.default.filterParams.includes(a));
-        paramsStr = params.map(a => args_1.escape(a)).join(' ');
+        paramsStr = params.join(' ');
         if (run === config_1.default.setOutputCommand) {
             return handleSetOutput(params);
         }
@@ -9348,8 +9310,6 @@ async function exec() {
     else {
         run = core.getInput('run');
         paramsStr = core.getInput('params');
-        const params = args_1.split(paramsStr);
-        paramsStr = params.join(' ');
     }
     const pluginInfo = await enableEnv(run, !fromAction);
     try {

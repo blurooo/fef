@@ -5,8 +5,6 @@ import { Git } from './install/git';
 import Linker from './linker';
 import { PluginInfo } from './install/plugin';
 import { setOutput } from './utils/output';
-import { escape, split } from './utils/args';
-import fs from './fs';
 
 function enableCommand(workDir: string) {
   const [nodeCommand, fefEnterFile] = process.argv;
@@ -45,15 +43,13 @@ async function exec() {
     [run] = argv;
     const params = argv.slice(1)
       .filter(a => !config.filterParams.includes(a));
-    paramsStr = params.map(a => escape(a)).join(' ');
+    paramsStr = params.join(' ');
     if (run === config.setOutputCommand) {
       return handleSetOutput(params);
     }
   } else {
     run = core.getInput('run');
     paramsStr = core.getInput('params');
-    const params = split(paramsStr);
-    paramsStr = params.join(' ');
   }
   const pluginInfo = await enableEnv(run, !fromAction);
   try {
