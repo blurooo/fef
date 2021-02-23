@@ -5,11 +5,14 @@ import { Git } from './install/git';
 import Linker from './linker';
 import { PluginInfo } from './install/plugin';
 import { setOutput } from './utils/output';
+import { escape, split } from './utils/args';
+import os from 'os';
 
-function enableCommand(workDir: string) {
+function enableCommand() {
+  const tmpDir = path.join(os.tmpdir(), config.execName);
   const [nodeCommand, fefEnterFile] = process.argv;
-  const curBinPath = path.join(workDir, 'bin');
-  const libBinPath = path.join(workDir, 'lib');
+  const curBinPath = path.join(tmpDir, 'bin');
+  const libBinPath = path.join(tmpDir, 'lib');
   if (!process.env.PATH?.startsWith(curBinPath)) {
     process.env.PATH = `${curBinPath}${path.delimiter}${process.env.PATH}`;
   }
@@ -28,7 +31,7 @@ async function enableEnv(plugin: string, silent: boolean): Promise<PluginInfo> {
   const git = new Git(silent);
   const [pluginInfo] = await Promise.all([
     git.enablePlugin(plugin),
-    enableCommand(config.workPath),
+    enableCommand(),
   ]);
   return pluginInfo;
 }
