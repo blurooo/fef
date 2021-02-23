@@ -5,7 +5,6 @@ import { Git } from './install/git';
 import Linker from './linker';
 import { PluginInfo } from './install/plugin';
 import { setOutput } from './utils/output';
-import { escape, split } from './utils/args';
 import os from 'os';
 
 function enableCommand() {

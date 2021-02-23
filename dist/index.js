@@ -9270,11 +9270,13 @@ const core = __importStar(__webpack_require__(51));
 const git_1 = __webpack_require__(997);
 const linker_1 = __importDefault(__webpack_require__(708));
 const output_1 = __webpack_require__(745);
-function enableCommand(workDir) {
+const os_1 = __importDefault(__webpack_require__(87));
+function enableCommand() {
     var _a;
+    const tmpDir = path_1.default.join(os_1.default.tmpdir(), config_1.default.execName);
     const [nodeCommand, fefEnterFile] = process.argv;
-    const curBinPath = path_1.default.join(workDir, 'bin');
-    const libBinPath = path_1.default.join(workDir, 'lib');
+    const curBinPath = path_1.default.join(tmpDir, 'bin');
+    const libBinPath = path_1.default.join(tmpDir, 'lib');
     if (!((_a = process.env.PATH) === null || _a === void 0 ? void 0 : _a.startsWith(curBinPath))) {
         process.env.PATH = `${curBinPath}${path_1.default.delimiter}${process.env.PATH}`;
     }
@@ -9288,7 +9290,7 @@ async function enableEnv(plugin, silent) {
     const git = new git_1.Git(silent);
     const [pluginInfo] = await Promise.all([
         git.enablePlugin(plugin),
-        enableCommand(config_1.default.workPath),
+        enableCommand(),
     ]);
     return pluginInfo;
 }
